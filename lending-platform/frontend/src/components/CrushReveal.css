@@ -1,0 +1,91 @@
+/* CrushReveal.css */
+.crush-reveal-container {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.crush-wrapper {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #2D1B69;
+  background-image: url('https://www.transparenttextures.com/patterns/paper-fibers.png');
+  background-blend-mode: multiply;
+  z-index: 9999;
+  pointer-events: none;
+  clip-path: polygon(0% 0%, 33% 0%, 66% 0%, 100% 0%, 100% 33%, 100% 66%, 100% 100%, 66% 100%, 33% 100%, 0% 100%, 0% 66%, 0% 33%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.crush-wrapper::after {
+  content: "";
+  position: absolute;
+  inset: -50px;
+  background: radial-gradient(circle at center, transparent 20%, rgba(0,0,0,0.85) 100%);
+  opacity: 0;
+  transition: opacity 1s ease-in;
+  z-index: -1;
+}
+
+.crush-wrapper.crushing {
+  animation: crushPaperAnim 1.4s cubic-bezier(0.6, -0.1, 0.1, 1) forwards;
+}
+
+.crush-wrapper.crushing::after {
+  opacity: 1;
+}
+
+/* Logo inside the crush */
+.crush-logo {
+  color: white;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.crush-logo-img {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  border-radius: 20px;
+}
+
+.crush-logo h1 {
+  font-size: 4.5rem;
+  margin: 0;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -2px;
+  color: #FFFFFF;
+  text-shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+
+/* Keyframes */
+@keyframes crushPaperAnim {
+  0% {
+    clip-path: polygon(0% 0%, 33% 0%, 66% 0%, 100% 0%, 100% 33%, 100% 66%, 100% 100%, 66% 100%, 33% 100%, 0% 100%, 0% 66%, 0% 33%);
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  30% {
+    clip-path: polygon(8% 12%, 30% 4%, 60% 8%, 92% 5%, 95% 35%, 88% 60%, 92% 90%, 65% 85%, 35% 95%, 8% 88%, 4% 65%, 12% 30%);
+    transform: scale(0.8) rotate(3deg);
+    opacity: 1;
+  }
+  65% {
+    clip-path: polygon(15% 20%, 35% 15%, 55% 15%, 80% 15%, 85% 40%, 85% 65%, 80% 80%, 60% 85%, 40% 85%, 20% 80%, 15% 55%, 15% 35%);
+    transform: scale(0.4) rotate(-10deg);
+    opacity: 1;
+  }
+  100% {
+    clip-path: polygon(45% 45%, 48% 45%, 52% 45%, 55% 45%, 55% 48%, 55% 52%, 55% 55%, 52% 55%, 48% 55%, 45% 55%, 45% 52%, 45% 48%);
+    transform: scale(0) rotate(25deg);
+    opacity: 0;
+  }
+}

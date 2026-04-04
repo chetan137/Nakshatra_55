@@ -50,7 +50,7 @@ export default function Dashboard() {
       {/* ── Sidebar ── */}
       <aside className="dash-sidebar">
         <div className="dash-sidebar-logo">
-          <span style={{ color: '#6B4EFF' }}>⬡</span> LendChain
+          <span style={{ color: '#6B4EFF' }}>⬡</span> Go Secure
         </div>
         <nav className="dash-sidebar-nav">
           {navItems.map(item => (

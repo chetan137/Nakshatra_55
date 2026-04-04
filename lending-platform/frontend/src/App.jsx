@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import CrushReveal from './components/CrushReveal';
 
 import Landing from './pages/Landing';
 import Register     from './pages/Register';
@@ -19,8 +20,8 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Landing page is the root */}
-          <Route path="/" element={<Landing />} />
+          {/* Landing page with CrushReveal splash animation */}
+          <Route path="/" element={<CrushReveal><Landing /></CrushReveal>} />
           {/* Auth pages */}
           <Route path="/register" element={<Register />} />
           <Route path="/verify-email" element={<VerifyEmail />} />

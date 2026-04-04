@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import OTPInput from '../components/OTPInput';
 import { verifyEmail, resendOTP } from '../api/authApi';
 import { useAuth } from '../context/AuthContext';
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 
 export default function VerifyEmail() {
   const navigate = useNavigate();
@@ -20,7 +22,6 @@ export default function VerifyEmail() {
     if (!userId) navigate('/register', { replace: true });
   }, [userId, navigate]);
 
-  // Countdown timer
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = setInterval(() => setCooldown((c) => c - 1), 1000);
@@ -61,29 +62,32 @@ export default function VerifyEmail() {
   }
 
   return (
-    <div className="page-auth">
-      <div className="auth-card">
-        <div className="auth-header">
-          <div className="auth-icon-wrap"><MailCheck size={28} color="#6B4EFF" /></div>
-          <h1 className="auth-title">Verify Email</h1>
-          <p className="auth-subtitle">We sent a 6-digit code to<br /><strong>{email}</strong></p>
+    <>
+      <Navbar />
+      <div className="page-auth" style={{ paddingTop: '100px' }}>
+        <div className="auth-card">
+          <div className="auth-header">
+            <div className="auth-icon-wrap"><MailCheck size={28} color="#6B4EFF" /></div>
+            <h1 className="auth-title">Verify Email</h1>
+            <p className="auth-subtitle">We sent a 6-digit code to<br /><strong>{email}</strong></p>
+          </div>
+
+          <form onSubmit={handleVerify} className="auth-form">
+            <OTPInput onChange={handleOTPChange} />
+            <button type="submit" className="btn btn-primary auth-submit" disabled={loading || otp.length !== 6}>
+              {loading ? <span className="spinner spinner-sm" /> : 'Verify Email'}
+            </button>
+          </form>
+
+          <p className="auth-footer">
+            Didn't get the code?{' '}
+            <button type="button" className="auth-link-btn" onClick={handleResend} disabled={cooldown > 0}>
+              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend OTP'}
+            </button>
+          </p>
         </div>
-
-        <form onSubmit={handleVerify} className="auth-form">
-          <OTPInput onChange={handleOTPChange} />
-
-          <button type="submit" className="btn btn-primary auth-submit" disabled={loading || otp.length !== 6}>
-            {loading ? <span className="spinner spinner-sm" /> : 'Verify Email'}
-          </button>
-        </form>
-
-        <p className="auth-footer">
-          Didn't get the code?{' '}
-          <button type="button" className="auth-link-btn" onClick={handleResend} disabled={cooldown > 0}>
-            {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend OTP'}
-          </button>
-        </p>
       </div>
-    </div>
+      <Footer />
+    </>
   );
 }

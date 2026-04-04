@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { resetPassword } from '../api/authApi';
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -38,30 +40,34 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="page-auth">
-      <div className="auth-card">
-        <div className="auth-header">
-          <div className="auth-icon-wrap"><ShieldCheck size={28} color="#6B4EFF" /></div>
-          <h1 className="auth-title">Reset Password</h1>
-          <p className="auth-subtitle">Choose a strong new password</p>
+    <>
+      <Navbar />
+      <div className="page-auth" style={{ paddingTop: '100px' }}>
+        <div className="auth-card">
+          <div className="auth-header">
+            <div className="auth-icon-wrap"><ShieldCheck size={28} color="#6B4EFF" /></div>
+            <h1 className="auth-title">Reset Password</h1>
+            <p className="auth-subtitle">Choose a strong new password</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="auth-form">
+            <div className="form-group">
+              <label htmlFor="reset-pw">New Password</label>
+              <input id="reset-pw" name="password" type="password" placeholder="Min 6 chars, include a number" value={form.password} onChange={handleChange} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="reset-confirm">Confirm Password</label>
+              <input id="reset-confirm" name="confirmPassword" type="password" placeholder="Re-enter password" value={form.confirmPassword} onChange={handleChange} />
+            </div>
+            <button type="submit" className="btn btn-primary auth-submit" disabled={loading}>
+              {loading ? <span className="spinner spinner-sm" /> : 'Reset Password'}
+            </button>
+          </form>
+
+          <p className="auth-footer"><Link to="/login" className="auth-link">Back to Sign In</Link></p>
         </div>
-
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label htmlFor="reset-pw">New Password</label>
-            <input id="reset-pw" name="password" type="password" placeholder="Min 6 chars, include a number" value={form.password} onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="reset-confirm">Confirm Password</label>
-            <input id="reset-confirm" name="confirmPassword" type="password" placeholder="Re-enter password" value={form.confirmPassword} onChange={handleChange} />
-          </div>
-          <button type="submit" className="btn btn-primary auth-submit" disabled={loading}>
-            {loading ? <span className="spinner spinner-sm" /> : 'Reset Password'}
-          </button>
-        </form>
-
-        <p className="auth-footer"><Link to="/login" className="auth-link">Back to Sign In</Link></p>
       </div>
-    </div>
+      <Footer />
+    </>
   );
 }

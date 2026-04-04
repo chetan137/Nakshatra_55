@@ -1,20 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowRight, Shield, Zap, TrendingUp, Users, ChevronDown,
-  Wallet, Globe, Lock, BarChart3, Menu, X, Star, CheckCircle
+  ArrowRight, Shield, Zap, TrendingUp, ChevronDown,
+  Wallet, Globe, Lock, BarChart3, Star, CheckCircle
 } from 'lucide-react';
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 
 export default function Landing() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', onScroll);
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
   const stats = [
     { label: 'Total Value Locked', value: '$2.4B+' },
     { label: 'Active Users', value: '180K+' },
@@ -23,36 +16,12 @@ export default function Landing() {
   ];
 
   const features = [
-    {
-      icon: <Shield size={32} color="#6B4EFF" />,
-      title: 'Non-Custodial',
-      desc: 'You always control your assets. Smart contracts are the only intermediary — fully transparent and audited.',
-    },
-    {
-      icon: <Zap size={32} color="#FF5C34" />,
-      title: 'Instant Liquidity',
-      desc: 'Borrow against your crypto collateral in minutes. No credit checks, no paperwork, no waiting.',
-    },
-    {
-      icon: <TrendingUp size={32} color="#00C896" />,
-      title: 'High Yield Lending',
-      desc: 'Earn competitive APY by supplying liquidity to lending pools. Withdraw any time.',
-    },
-    {
-      icon: <Globe size={32} color="#6B4EFF" />,
-      title: 'Truly Borderless',
-      desc: 'Access decentralized finance from anywhere in the world. No bank account required.',
-    },
-    {
-      icon: <Lock size={32} color="#FF5C34" />,
-      title: 'Battle-Tested Security',
-      desc: 'Smart contracts audited by top security firms. Multi-sig governance and emergency pause mechanisms.',
-    },
-    {
-      icon: <BarChart3 size={32} color="#00C896" />,
-      title: 'Real-Time Markets',
-      desc: 'Live interest rates, collateral ratios, and market depth — full on-chain transparency.',
-    },
+    { icon: <Shield size={32} color="#6B4EFF" />, title: 'Non-Custodial', desc: 'You always control your assets. Smart contracts are the only intermediary — fully transparent and audited.' },
+    { icon: <Zap size={32} color="#FF5C34" />, title: 'Instant Liquidity', desc: 'Borrow against your crypto collateral in minutes. No credit checks, no paperwork, no waiting.' },
+    { icon: <TrendingUp size={32} color="#00C896" />, title: 'High Yield Lending', desc: 'Earn competitive APY by supplying liquidity to lending pools. Withdraw any time.' },
+    { icon: <Globe size={32} color="#6B4EFF" />, title: 'Truly Borderless', desc: 'Access decentralized finance from anywhere in the world. No bank account required.' },
+    { icon: <Lock size={32} color="#FF5C34" />, title: 'Battle-Tested Security', desc: 'Smart contracts audited by top security firms. Multi-sig governance and emergency pause mechanisms.' },
+    { icon: <BarChart3 size={32} color="#00C896" />, title: 'Real-Time Markets', desc: 'Live interest rates, collateral ratios, and market depth — full on-chain transparency.' },
   ];
 
   const steps = [
@@ -63,47 +32,19 @@ export default function Landing() {
   ];
 
   const testimonials = [
-    { name: 'Aryan Mehta', role: 'DeFi Trader', text: 'LendChain is the smoothest borrowing experience in DeFi. Got liquidity against my ETH in 3 minutes flat.', rating: 5 },
-    { name: 'Sofia Rossi', role: 'Yield Farmer', text: 'I\'ve tried 10 lending protocols. LendChain is the only one where the UI actually makes sense.', rating: 5 },
+    { name: 'Aryan Mehta', role: 'DeFi Trader', text: 'Go Secure is the smoothest borrowing experience in DeFi. Got liquidity against my ETH in 3 minutes flat.', rating: 5 },
+    { name: 'Sofia Rossi', role: 'Yield Farmer', text: "I've tried 10 lending protocols. Go Secure is the only one where the UI actually makes sense.", rating: 5 },
     { name: 'James Okonkwo', role: 'Crypto Investor', text: 'Earning 12% APY on my stablecoin deposits. Transparent, fast, secure — everything DeFi should be.', rating: 5 },
   ];
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', overflowX: 'hidden' }}>
 
-      {/* ── Navbar ── */}
-      <nav className={`landing-nav${scrolled ? ' landing-nav--scrolled' : ''}`}>
-        <div className="landing-nav-inner">
-          <span className="navbar-logo">LendChain</span>
-          <div className="navbar-links">
-            <a href="#features">Features</a>
-            <a href="#how-it-works">How it Works</a>
-            <a href="#markets">Markets</a>
-          </div>
-          <div className="landing-nav-actions">
-            <Link to="/login" className="btn btn-secondary" style={{ padding: '10px 24px', fontSize: '14px' }}>Sign In</Link>
-            <Link to="/register" className="btn btn-primary" style={{ padding: '10px 24px', fontSize: '14px' }}>Get Started</Link>
-          </div>
-          <button className="mobile-menu-btn" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">
-            {menuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-        </div>
-        {menuOpen && (
-          <div className="mobile-menu">
-            <a href="#features" onClick={() => setMenuOpen(false)}>Features</a>
-            <a href="#how-it-works" onClick={() => setMenuOpen(false)}>How it Works</a>
-            <a href="#markets" onClick={() => setMenuOpen(false)}>Markets</a>
-            <Link to="/login" onClick={() => setMenuOpen(false)}>Sign In</Link>
-            <Link to="/register" className="btn btn-primary" style={{ textAlign: 'center' }} onClick={() => setMenuOpen(false)}>Get Started</Link>
-          </div>
-        )}
-      </nav>
+      <Navbar />
 
       {/* ── Hero ── */}
       <section className="hero-section">
-        <div className="hero-badge">
-          <CheckCircle size={14} /> Audited &amp; Battle-Tested Protocol
-        </div>
+        <div className="hero-badge"><CheckCircle size={14} /> Audited &amp; Battle-Tested Protocol</div>
         <h1 className="hero-heading" style={{ textAlign: 'center', maxWidth: '800px' }}>
           Decentralized Lending<br />
           <span className="hero-accent">For Everyone</span>
@@ -116,13 +57,9 @@ export default function Landing() {
           <Link to="/register" className="btn btn-primary hero-cta-main">
             Start Borrowing <ArrowRight size={18} />
           </Link>
-          <Link to="/register" className="btn btn-ghost hero-cta-sec">
-            Start Earning
-          </Link>
+          <Link to="/register" className="btn btn-ghost hero-cta-sec">Start Earning</Link>
         </div>
-        <a href="#features" className="hero-scroll-hint">
-          Explore <ChevronDown size={18} />
-        </a>
+        <a href="#features" className="hero-scroll-hint">Explore <ChevronDown size={18} /></a>
       </section>
 
       {/* ── Stats Bar ── */}
@@ -138,10 +75,8 @@ export default function Landing() {
       {/* ── Features ── */}
       <section id="features" className="landing-section">
         <div className="container">
-          <div className="section-label">Why LendChain</div>
-          <h2 className="section-heading landing-section-title">
-            Built for the Future of Finance
-          </h2>
+          <div className="section-label">Why Go Secure</div>
+          <h2 className="section-heading landing-section-title">Built for the Future of Finance</h2>
           <p className="landing-section-sub">
             Everything you need to lend, borrow, and grow your crypto wealth — all on-chain.
           </p>
@@ -193,10 +128,7 @@ export default function Landing() {
               { asset: 'DAI', supply: '7.3%', borrow: '9.6%', liquidity: '$340M', status: 'active' },
             ].map((m) => (
               <div key={m.asset} className="markets-row">
-                <span className="market-asset">
-                  <span className="asset-dot" />
-                  {m.asset}
-                </span>
+                <span className="market-asset"><span className="asset-dot" />{m.asset}</span>
                 <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>{m.supply}</span>
                 <span style={{ color: 'var(--accent-secondary)', fontWeight: 600 }}>{m.borrow}</span>
                 <span style={{ fontWeight: 500 }}>{m.liquidity}</span>
@@ -253,45 +185,12 @@ export default function Landing() {
             <Link to="/register" className="btn" style={{ background: '#fff', color: 'var(--accent-primary)', padding: '16px 40px', fontSize: '17px', fontWeight: 700, borderRadius: '50px' }}>
               Create Free Account <ArrowRight size={18} />
             </Link>
-            <Link to="/login" className="btn btn-ghost">
-              Sign In
-            </Link>
+            <Link to="/login" className="btn btn-ghost">Sign In</Link>
           </div>
         </div>
       </section>
 
-      {/* ── Footer ── */}
-      <footer className="landing-footer">
-        <div className="container">
-          <div className="footer-top">
-            <div>
-              <span className="navbar-logo" style={{ fontSize: '20px' }}>LendChain</span>
-              <p style={{ color: 'var(--text-dark-card-muted)', marginTop: '12px', maxWidth: '260px', fontSize: '14px' }}>
-                The open, permissionless lending protocol built on Ethereum.
-              </p>
-            </div>
-            <div className="footer-links-group">
-              <div className="footer-col">
-                <p className="footer-col-title">Protocol</p>
-                <a href="#features">Features</a>
-                <a href="#markets">Markets</a>
-                <a href="#how-it-works">Docs</a>
-              </div>
-              <div className="footer-col">
-                <p className="footer-col-title">Account</p>
-                <Link to="/register">Sign Up</Link>
-                <Link to="/login">Sign In</Link>
-                <Link to="/dashboard">Dashboard</Link>
-              </div>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <p style={{ color: 'var(--text-dark-card-muted)', fontSize: '13px' }}>
-              © {new Date().getFullYear()} LendChain. All rights reserved. Not financial advice.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

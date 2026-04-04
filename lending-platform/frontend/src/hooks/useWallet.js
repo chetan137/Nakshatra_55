@@ -114,7 +114,7 @@ export function useWallet() {
       if (!isCorrectChain) {
         const switched = await switchToSepolia();
         if (!switched) {
-          throw new Error('Please switch MetaMask to the Sepolia testnet to use LendChain.');
+          throw new Error('Please switch MetaMask to the Sepolia testnet to use Go Secure.');
         }
         // Re-init provider after switch
         const freshProvider = new ethers.BrowserProvider(window.ethereum);

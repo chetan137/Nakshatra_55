@@ -32,10 +32,10 @@ function getEmailHTML(name, otp, type) {
   const isVerify = type === 'verify';
   const heading = isVerify ? 'Verify your email' : 'Reset your password';
   const message = isVerify
-    ? 'Thanks for signing up with LendChain! Use the code below to verify your email address and activate your account.'
-    : 'We received a request to reset your LendChain password. Use the code below to continue.';
+    ? 'Thanks for signing up with Go Secure! Use the code below to verify your email address and activate your account.'
+    : 'We received a request to reset your Go Secure password. Use the code below to continue.';
   const warning = isVerify
-    ? "If you didn't create a LendChain account, you can safely ignore this email."
+    ? "If you didn't create a Go Secure account, you can safely ignore this email."
     : "If you didn't request a password reset, please ignore this email. Your password will remain unchanged.";
 
   return `
@@ -53,7 +53,7 @@ function getEmailHTML(name, otp, type) {
           <!-- Logo -->
           <tr>
             <td align="center" style="padding-bottom:32px;">
-              <span style="font-size:28px; font-weight:800; color:#6B4EFF;">Lend</span><span style="font-size:28px; font-weight:800; color:#FF8C69;">Chain</span>
+              <span style="font-size:28px; font-weight:800; color:#6B4EFF;">Go</span><span style="font-size:28px; font-weight:800; color:#FF8C69;"> Secure</span>
             </td>
           </tr>
           <!-- Card -->
@@ -76,7 +76,7 @@ function getEmailHTML(name, otp, type) {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:24px;">
-              <p style="margin:0; font-size:12px; color:#4A3F6B;">&copy; ${new Date().getFullYear()} LendChain. All rights reserved.</p>
+              <p style="margin:0; font-size:12px; color:#4A3F6B;">&copy; ${new Date().getFullYear()} Go Secure. All rights reserved.</p>
             </td>
           </tr>
         </table>
@@ -90,8 +90,8 @@ function getEmailHTML(name, otp, type) {
 async function sendOTPEmail(email, name, otp, type = 'verify') {
   const subject =
     type === 'verify'
-      ? 'Verify your LendChain account'
-      : 'Reset your LendChain password';
+      ? 'Verify your Go Secure account'
+      : 'Reset your Go Secure password';
 
   if (process.env.NODE_ENV !== 'production') {
     console.log(`\n========================================`);

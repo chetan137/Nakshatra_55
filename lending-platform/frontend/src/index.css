@@ -890,6 +890,71 @@ label {
   text-align: center;
 }
 
+/* ═══════════════════════════════════════
+   AUTH SPLIT PAGE (Login + Register)
+   ═══════════════════════════════════════ */
+.auth-split-page {
+  display: flex;
+  min-height: 100vh;
+  padding-top: 80px;
+}
+
+.auth-split-left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background: linear-gradient(135deg, #FF8C69 0%, #FF7A55 100%);
+}
+
+.auth-split-left .auth-card {
+  width: 100%;
+  max-width: 440px;
+}
+
+.auth-split-right {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-split-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.auth-split-video-overlay {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  color: white;
+  padding: 40px;
+  background: rgba(26, 16, 64, 0.55);
+  backdrop-filter: blur(6px);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.auth-split-video-overlay h2 {
+  font-size: 32px;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 8px;
+}
+
+.auth-split-video-overlay p {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .hero-heading { font-size: 40px; }
@@ -900,6 +965,8 @@ label {
   .markets-row span:nth-child(4), .markets-row span:nth-child(5) {
     display: none;
   }
+  .auth-split-right { display: none; }
+  .auth-split-page { flex-direction: column; }
 }
 
 @media (max-width: 768px) {
@@ -931,4 +998,7 @@ label {
   .auth-card {
     padding: 32px 24px;
   }
+  .auth-split-right { display: none; }
+  .auth-split-page { flex-direction: column; }
 }
+
