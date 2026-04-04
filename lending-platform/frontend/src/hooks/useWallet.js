@@ -251,6 +251,36 @@ export function useWallet() {
   }, [getContract]);
 
   /**
+   * Send ETH directly to a wallet address (no contract interaction).
+   * Used for guarantor loans where there is no on-chain loan record.
+   * MetaMask pops up, lender signs, ETH goes straight to borrower.
+   * @param toAddress  recipient wallet address
+   * @param amountEth  ETH amount as string or number (e.g. "0.05")
+   * @returns txHash
+   */
+  const sendEthDirect = useCallback(async (toAddress, amountEth) => {
+    let s = signer;
+    if (!s) {
+      await connect();
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      s = await provider.getSigner();
+      setSigner(s);
+      setAccount(await s.getAddress());
+    }
+    if (!chainOk) {
+      const switched = await switchToSepolia();
+      if (!switched) throw new Error('Please switch to Sepolia testnet.');
+    }
+    const tx = await s.sendTransaction({
+      to: toAddress,
+      value: ethers.parseEther(String(amountEth)),
+    });
+    const receipt = await tx.wait();
+    if (receipt.status === 0) throw new Error('ETH transfer failed on-chain');
+    return receipt.hash;
+  }, [signer, chainOk, connect, switchToSepolia]);
+
+  /**
    * Borrower: cancel pending loan before it's funded
    * @returns { txHash }
    */
@@ -266,6 +296,6 @@ export function useWallet() {
     account, connecting, signer, chainOk,
     connect, disconnect, switchToSepolia, getContract,
     callCreateLoan, callFundLoan, callRepayLoan,
-    callLiquidateLoanIfNeeded, callCancelLoan,
+    callLiquidateLoanIfNeeded, callCancelLoan, sendEthDirect,
   };
 }

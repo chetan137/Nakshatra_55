@@ -178,8 +178,17 @@ function FundModal({ loan, wallet, onClose, onSuccess, ethPrice }) {
       const addr = wallet.account || await wallet.connect();
       if (!addr) { setLoading(false); return; }
 
-      toast('Sending ETH to smart contract via MetaMask…', { icon: '⛓️' });
-      const { txHash } = await wallet.callFundLoan(loan.onChainId, loan.principal);
+      let txHash = null;
+      if (loan.onChainId !== null && loan.onChainId !== undefined) {
+        // Collateral-backed loan — fund via smart contract
+        toast('Sending ETH to smart contract via MetaMask…', { icon: '⛓️' });
+        const result = await wallet.callFundLoan(loan.onChainId, loan.principal);
+        txHash = result.txHash;
+      } else {
+        // Guarantor loan — send ETH directly to borrower wallet via MetaMask
+        toast('Sending ETH directly to borrower via MetaMask…', { icon: '🤝' });
+        txHash = await wallet.sendEthDirect(loan.borrowerAddress, loan.principal);
+      }
 
       toast('Updating database…', { icon: '💾' });
       await fundLoanAPI(loan._id, { lenderAddress: addr, fundTxHash: txHash });

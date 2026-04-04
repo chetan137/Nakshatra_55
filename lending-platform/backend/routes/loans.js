@@ -269,7 +269,10 @@ router.put('/:id/fund', verifyToken, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Borrower cannot fund own loan' });
     }
 
-    await requireTxHash(fundTxHash, 'fundTxHash');
+    // Guarantor loans have no on-chain ID — skip tx verification
+    if (loan.onChainId !== null && loan.onChainId !== undefined) {
+      await requireTxHash(fundTxHash, 'fundTxHash');
+    }
     // walletAddress already set on the user at auth time — no update needed
 
     const startDate = new Date();
