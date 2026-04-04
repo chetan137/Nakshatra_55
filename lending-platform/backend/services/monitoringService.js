@@ -70,19 +70,66 @@ function initBlockchain() {
   return true;
 }
 
-// ── Fetch ETH price from CoinGecko (free, no key required) ───
-async function getEthPriceUSD() {
+// ── Fetch ETH price from multiple sources, return median ─────
+async function fetchFromSource(name, url, extract) {
   try {
-    const res  = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd', {
+    const res  = await fetch(url, {
       headers: { 'Accept': 'application/json' },
-      signal:  AbortSignal.timeout(10000),
+      signal:  AbortSignal.timeout(8000),
     });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    return data?.ethereum?.usd ?? null;
+    const price = extract(data);
+    if (!price || typeof price !== 'number' || price <= 0) throw new Error('Invalid price value');
+    return price;
   } catch (err) {
-    console.warn('[Monitor] CoinGecko fetch failed:', err.message);
+    console.warn(`[Monitor] ${name} price fetch failed: ${err.message}`);
     return null;
   }
+}
+
+async function getEthPriceUSD() {
+  const [coingecko, cryptocompare, binance] = await Promise.all([
+    fetchFromSource(
+      'CoinGecko',
+      'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd',
+      d => d?.ethereum?.usd
+    ),
+    fetchFromSource(
+      'CryptoCompare',
+      'https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD',
+      d => d?.USD
+    ),
+    fetchFromSource(
+      'Binance',
+      'https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT',
+      d => d?.price ? parseFloat(d.price) : null
+    ),
+  ]);
+
+  const prices = [coingecko, cryptocompare, binance].filter(p => p !== null);
+  console.log(`[Monitor] Price sources — CoinGecko: ${coingecko}, CryptoCompare: ${cryptocompare}, Binance: ${binance}`);
+
+  if (prices.length < 2) {
+    console.error('[Monitor] ❌ Fewer than 2 price sources responded — skipping round');
+    return null;
+  }
+
+  prices.sort((a, b) => a - b);
+  const median = prices.length === 3
+    ? prices[1]
+    : (prices[0] + prices[1]) / 2;
+
+  // Sanity check: if any source deviates more than 5% from median, warn
+  [coingecko, cryptocompare, binance].forEach((p, i) => {
+    if (p !== null && Math.abs(p - median) / median > 0.05) {
+      const names = ['CoinGecko', 'CryptoCompare', 'Binance'];
+      console.warn(`[Monitor] ⚠️ ${names[i]} price $${p} deviates >5% from median $${median.toFixed(2)}`);
+    }
+  });
+
+  console.log(`[Monitor] Median ETH/USD = $${median.toFixed(2)} (from ${prices.length} sources)`);
+  return median;
 }
 
 // ── Trigger on-chain liquidation ──────────────────────────────
@@ -170,18 +217,20 @@ async function runPriceCheck() {
 
           const txHash = await triggerOnChainLiquidation(loan);
 
-          // Update DB regardless (even if tx failed, mark for manual review)
-          await Loan.findByIdAndUpdate(loan._id, {
-            status:          'defaulted',
-            liquidatedAt:    new Date(),
-            liquidateTxHash: txHash || null,
-          });
-
-          // Send liquidation emails
-          const { borrower, lender } = await loadParties(loan);
-          await sendLiquidationAlert(lender, borrower, loan, ratio, 'price_drop');
-
-          console.log(`[Monitor] Loan ${loan._id} marked defaulted. Emails sent.`);
+          if (txHash) {
+            // Only update DB when we have a confirmed on-chain tx
+            await Loan.findByIdAndUpdate(loan._id, {
+              status:          'defaulted',
+              liquidatedAt:    new Date(),
+              liquidateTxHash: txHash,
+            });
+            const { borrower, lender } = await loadParties(loan);
+            await sendLiquidationAlert(lender, borrower, loan, ratio, 'price_drop');
+            console.log(`[Monitor] ✅ Loan ${loan._id} marked defaulted. Emails sent.`);
+          } else {
+            // No signer or tx failed — log for manual review, do NOT mutate DB
+            console.error(`[Monitor] ❌ Loan ${loan._id} liquidation failed on-chain — DB NOT updated. Manual review needed.`);
+          }
         } else {
           console.log(`[Monitor] ⚠️ Loan ${loan._id}: ratio ${ratio}% — below threshold but deadline not passed yet`);
         }

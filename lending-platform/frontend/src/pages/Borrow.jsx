@@ -81,6 +81,18 @@ export default function Borrow() {
       const addr = wallet.account || await wallet.connect();
       if (!addr) { setLoading(false); return; }
 
+      // Verify wallet ownership if not already verified for this address
+      if (!user?.walletAddress || user.walletAddress.toLowerCase() !== addr.toLowerCase()) {
+        toast('Verifying wallet ownership — sign the message in MetaMask…', { icon: '🔐' });
+        try {
+          await wallet.verifyWalletOwnership(addr);
+          toast.success('Wallet verified!');
+        } catch (verifyErr) {
+          setLoading(false);
+          return toast.error('Wallet verification failed: ' + (verifyErr?.response?.data?.message || verifyErr.message));
+        }
+      }
+
       const pEth = principalEth.toFixed(8);
       const cEth = collateralEth.toFixed(8);
 

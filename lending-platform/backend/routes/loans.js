@@ -54,7 +54,7 @@ router.post('/', verifyToken, async (req, res, next) => {
     await requireTxHash(createTxHash, 'createTxHash');
 
     const [riskScoreVal] = await Promise.all([
-      blockchain.getRiskScore(borrowerAddress),
+      blockchain.computeRiskScore(borrowerAddress, req.user._id),
       User.findByIdAndUpdate(req.user._id, { walletAddress: borrowerAddress }),
     ]);
 

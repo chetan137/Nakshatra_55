@@ -64,6 +64,15 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  walletNonce: {
+    type: String,
+  },
+  walletNonceExpiry: {
+    type: Date,
+  },
+  pendingWallet: {
+    type: String,
+  },
 });
 
 module.exports = mongoose.model('User', userSchema);

@@ -53,27 +53,42 @@ app.use('/api/auth', authLimiter);
 app.use('/api/auth',  authRoutes);
 app.use('/api/loans', loanRoutes);
 
-// ── ETH/USD price (CoinGecko, no API key needed) ──────────
+// ── ETH/USD price — median of 3 sources (60s cache) ──────────
 let _ethPriceCache = { usd: null, ts: 0 };
+
+async function fetchEthMedianPrice() {
+  async function src(name, url, extract) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(6000), headers: { Accept: 'application/json' } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      const p = extract(d);
+      return (p && typeof p === 'number' && p > 0) ? p : null;
+    } catch { return null; }
+  }
+  const [a, b, c] = await Promise.all([
+    src('coingecko',     'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd', d => d?.ethereum?.usd),
+    src('cryptocompare', 'https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD',              d => d?.USD),
+    src('binance',       'https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT',                   d => d?.price ? parseFloat(d.price) : null),
+  ]);
+  const prices = [a, b, c].filter(p => p !== null);
+  if (prices.length < 2) return null;
+  prices.sort((x, y) => x - y);
+  return prices.length === 3 ? prices[1] : (prices[0] + prices[1]) / 2;
+}
+
 app.get('/api/eth-price', async (req, res) => {
   try {
     const now = Date.now();
-    // Cache for 60 seconds to avoid hammering CoinGecko
     if (_ethPriceCache.usd && now - _ethPriceCache.ts < 60_000) {
       return res.json({ success: true, usd: _ethPriceCache.usd, cached: true });
     }
-    const response = await fetch(
-      'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd'
-    );
-    if (!response.ok) throw new Error('CoinGecko error ' + response.status);
-    const data = await response.json();
-    const usd  = data?.ethereum?.usd;
-    if (!usd) throw new Error('Unexpected CoinGecko response');
+    const usd = await fetchEthMedianPrice();
+    if (!usd) throw new Error('All price sources failed');
     _ethPriceCache = { usd, ts: now };
     res.json({ success: true, usd });
   } catch (err) {
     console.error('[eth-price]', err.message);
-    // Return cached value if available, even if stale
     if (_ethPriceCache.usd) {
       return res.json({ success: true, usd: _ethPriceCache.usd, cached: true, stale: true });
     }

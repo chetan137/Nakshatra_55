@@ -163,6 +163,48 @@ async function getCollateralRatioWithPrice(onChainId) {
   }
 }
 
+/**
+ * Compute a dynamic risk score (0–100) for a borrower.
+ * Combines on-chain contract reputation with MongoDB loan history.
+ * Higher = safer borrower.
+ */
+async function computeRiskScore(walletAddress, userId) {
+  init();
+
+  let contractScore = 80; // default
+  if (contract) {
+    try {
+      contractScore = Number(await contract.riskScore(walletAddress));
+    } catch { /* keep default */ }
+  }
+
+  // Pull MongoDB history for this user
+  let dbScore = 80;
+  if (userId) {
+    try {
+      const Loan = require('../models/Loan');
+      const loans = await Loan.find({ borrower: userId }).lean();
+      if (loans.length > 0) {
+        const repaid    = loans.filter(l => l.status === 'repaid').length;
+        const defaulted = loans.filter(l => l.status === 'defaulted').length;
+        // Base: 80, +2 per repaid, -10 per default, capped 0-100
+        dbScore = Math.min(100, Math.max(0, 80 + (repaid * 2) - (defaulted * 10)));
+        // Bonus: high collateral ratio average
+        const activeOrRepaid = loans.filter(l => l.principal > 0 && l.collateral > 0);
+        if (activeOrRepaid.length > 0) {
+          const avgRatio = activeOrRepaid.reduce((s, l) => s + (l.collateral / l.principal), 0) / activeOrRepaid.length;
+          if (avgRatio >= 2.0) dbScore = Math.min(100, dbScore + 5);  // 200%+ collateral history
+          if (avgRatio >= 1.8) dbScore = Math.min(100, dbScore + 3);
+        }
+      }
+    } catch { /* keep default */ }
+  }
+
+  // Weighted average: 40% contract (on-chain truth), 60% DB (richer history)
+  const final = Math.round(contractScore * 0.4 + dbScore * 0.6);
+  return Math.min(100, Math.max(0, final));
+}
+
 module.exports = {
   verifyTx,
   getLoanOnChain,
@@ -170,4 +212,5 @@ module.exports = {
   getLiveTotalOwed,
   getCollateralRatio,
   getCollateralRatioWithPrice,
+  computeRiskScore,
 };

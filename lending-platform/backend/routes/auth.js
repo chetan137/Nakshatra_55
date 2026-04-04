@@ -444,4 +444,70 @@ router.get('/me', verifyToken, async (req, res) => {
   });
 });
 
+// ─────────────────────────────────────────────
+// POST /api/auth/wallet-challenge
+// Returns a nonce the user must sign with MetaMask
+// ─────────────────────────────────────────────
+router.post('/wallet-challenge', verifyToken, async (req, res, next) => {
+  try {
+    const { walletAddress } = req.body;
+    if (!walletAddress || !/^0x[0-9a-fA-F]{40}$/.test(walletAddress)) {
+      return res.status(400).json({ success: false, message: 'Valid walletAddress required' });
+    }
+    const nonce   = crypto.randomBytes(16).toString('hex');
+    const message = `LendChain wallet verification\nNonce: ${nonce}\nTimestamp: ${Date.now()}`;
+    await User.findByIdAndUpdate(req.user._id, {
+      walletNonce:       nonce,
+      walletNonceExpiry: new Date(Date.now() + 5 * 60 * 1000),
+      pendingWallet:     walletAddress.toLowerCase(),
+    });
+    res.json({ success: true, message });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/auth/verify-wallet
+// Verifies the signed nonce and binds wallet to user
+// ─────────────────────────────────────────────
+router.post('/verify-wallet', verifyToken, async (req, res, next) => {
+  try {
+    const { signature, message } = req.body;
+    if (!signature || !message) {
+      return res.status(400).json({ success: false, message: 'signature and message required' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user?.walletNonce || !user?.walletNonceExpiry || !user?.pendingWallet) {
+      return res.status(400).json({ success: false, message: 'No pending wallet challenge. Request a new one.' });
+    }
+    if (new Date() > user.walletNonceExpiry) {
+      return res.status(400).json({ success: false, message: 'Challenge expired. Request a new one.' });
+    }
+
+    let recovered;
+    try {
+      const { ethers } = require('ethers');
+      recovered = ethers.verifyMessage(message, signature);
+    } catch {
+      return res.status(400).json({ success: false, message: 'Invalid signature' });
+    }
+
+    if (recovered.toLowerCase() !== user.pendingWallet) {
+      return res.status(400).json({ success: false, message: 'Signature does not match wallet address' });
+    }
+
+    // Bind verified wallet
+    await User.findByIdAndUpdate(req.user._id, {
+      walletAddress: user.pendingWallet,
+      $unset: { walletNonce: '', walletNonceExpiry: '', pendingWallet: '' },
+    });
+
+    res.json({ success: true, message: 'Wallet verified and linked to your account' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;

@@ -36,3 +36,5 @@ export const forgotPassword = (data) => API.post('/auth/forgot-password', data);
 export const verifyResetOTP = (data) => API.post('/auth/verify-reset-otp', data);
 export const resetPassword = (data) => API.post('/auth/reset-password', data);
 export const getMe = () => API.get('/auth/me');
+export const walletChallenge = (data) => API.post('/auth/wallet-challenge', data);
+export const verifyWallet = (data) => API.post('/auth/verify-wallet', data);

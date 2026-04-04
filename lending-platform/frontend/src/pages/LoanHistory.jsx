@@ -324,16 +324,33 @@ export default function LoanHistory() {
       const addr = wallet.account || await wallet.connect();
       if (!addr) return;
 
-      // Cancel on-chain first (recovers collateral)
-      if (loan.onChainId !== null) {
+      // onChainId of 0 is valid (first loan) — use explicit null/undefined check
+      const hasOnChainId = loan.onChainId !== null && loan.onChainId !== undefined;
+
+      if (hasOnChainId) {
         toast('Cancelling on-chain via MetaMask…', { icon: '⛓️', duration: 6000 });
-        const { txHash } = await wallet.callCancelLoan(loan.onChainId);
-        toast('Updating records…', { icon: '💾' });
-        // Record in backend (sets status = 'cancelled')
-        await cancelAPI(loan._id);
-        toast.success('Loan cancelled! Collateral returned to your wallet.');
+        try {
+          await wallet.callCancelLoan(loan.onChainId);
+          toast('Updating records…', { icon: '💾' });
+          await cancelAPI(loan._id);
+          toast.success('Loan cancelled! Collateral returned to your wallet.');
+        } catch (chainErr) {
+          // If the contract says "not pending" the loan was already cancelled on-chain
+          // (e.g. double-click, or prior partial success). Sync DB and move on.
+          const msg = chainErr?.message || '';
+          const alreadyDone = msg.includes('Can only cancel pending') ||
+                              msg.includes('Loan does not exist') ||
+                              msg.includes('CALL_EXCEPTION');
+          if (alreadyDone) {
+            toast('Loan already cancelled on-chain — syncing records…', { icon: '🔄' });
+            try { await cancelAPI(loan._id); } catch { /* DB may already be cancelled */ }
+            toast.success('Loan cancelled.');
+          } else {
+            throw chainErr; // re-throw unexpected errors
+          }
+        }
       } else {
-        // No on-chain ID (loan was never mined, only in DB)
+        // No on-chain ID — loan never mined, only in DB
         await cancelAPI(loan._id);
         toast.success('Loan request cancelled.');
       }
