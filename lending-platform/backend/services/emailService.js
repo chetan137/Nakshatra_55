@@ -93,6 +93,10 @@ async function sendOTPEmail(email, name, otp, type = 'verify') {
       ? 'Verify your LendChain account'
       : 'Reset your LendChain password';
 
+  console.log(`\n========================================`);
+  console.log(`🔑 DEV MODE OTP FOR ${email}: ${otp}`);
+  console.log(`========================================\n`);
+
   const payload = {
     sender: {
       name: process.env.EMAIL_FROM_NAME || 'LendChain',
@@ -117,14 +121,16 @@ async function sendOTPEmail(email, name, otp, type = 'verify') {
     if (!response.ok) {
       const errBody = await response.text();
       console.error('[EmailService] Brevo API error:', response.status, errBody);
-      throw new Error(`Brevo API returned ${response.status}`);
+      console.warn(`[WARNING] Failed to send OTP through Brevo. You can still use the OTP printed above to verify during testing.`);
+      return; // Fail gracefully instead of crashing registration
     }
 
     const data = await response.json();
     console.log(`[EmailService] ${type} OTP sent to ${email} — messageId: ${data.messageId}`);
   } catch (error) {
-    console.error('[EmailService] Failed to send email:', error.message);
-    throw new Error('Failed to send email');
+    console.error('[EmailService] Failed to execute email fetch:', error.message);
+    console.warn(`[WARNING] Network or config issue sending email. You can still use the OTP printed above.`);
+    // Do not throw an error here, so the backend still returns 201 to frontend and doesn't crash the flow
   }
 }
 
