@@ -47,16 +47,52 @@ function LoanCard({ loan, onFund, ethPrice }) {
         <div style={{
           width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #60180b, #815249)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700,
+          flexShrink: 0,
         }}>
           {loan.borrower?.name?.charAt(0).toUpperCase() || 'B'}
         </div>
-        <div>
-          <p style={{ fontWeight: 700, fontSize: 15 }}>{loan.borrower?.name || 'Borrower'}</p>
-          <p style={{ fontSize: 12, color: '#8a7e80' }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>
+            {loan.borrower?.name || 'Borrower'} 
+            <span style={{ fontSize: 10, color: '#8a7e80', background: '#f5e8e5', padding: '2px 6px', borderRadius: 4, marginLeft: 6 }}>Borrower</span>
+          </p>
+          <p style={{ fontSize: 12, color: '#8a7e80', margin: '2px 0 0', fontFamily: 'monospace' }}>
             {loan.borrowerAddress?.slice(0, 6)}…{loan.borrowerAddress?.slice(-4)}
           </p>
         </div>
       </div>
+
+      {/* Guarantor Info (if non-collateral) */}
+      {loan.guarantorRequest && (
+        <div style={{ background: 'rgba(0,55,63,0.04)', borderRadius: 12, padding: '12px', marginBottom: 16, border: '1px solid rgba(0,55,63,0.1)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Shield size={14} color="#00373f" />
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#00373f' }}>Guarantor Backed ({loan.guarantorRequest.status})</span>
+            </div>
+            <span style={{ fontSize: 11, color: '#8a7e80', fontFamily: 'monospace' }}>
+              {loan.guarantorAddress?.slice(0, 6)}…{loan.guarantorAddress?.slice(-4)}
+            </span>
+          </div>
+          
+          {loan.guarantorRequest.documentUrl ? (
+            <a href={loan.guarantorRequest.documentUrl} target="_blank" rel="noreferrer" style={{
+              display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#60180b', fontWeight: 600,
+              textDecoration: 'none', background: 'white', padding: '6px 10px', borderRadius: 6, width: 'fit-content',
+              border: '1px solid rgba(96,24,11,0.2)', transition: 'border 0.2s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = '#60180b'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(96,24,11,0.2)'}
+            >
+              📄 View Verifiable Document
+            </a>
+          ) : (
+            <span style={{ fontSize: 11, color: '#ba1a1a', fontStyle: 'italic', background: 'white', padding: '2px 6px', borderRadius: 4 }}>
+              No document uploaded
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Stats grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>

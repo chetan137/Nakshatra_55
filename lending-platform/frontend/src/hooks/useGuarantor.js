@@ -92,15 +92,27 @@ export function useGuarantor() {
     }
   }, []);
 
-  const approveRequest = useCallback(async (token, id, { documentHash, documentFileName, documentType, guarantorNote }) => {
+  const approveRequest = useCallback(async (token, id, { documentFile, documentHash, documentFileName, documentType, guarantorNote }) => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await axios.put(
-        `${API}/guarantor/${id}/approve`,
-        { documentHash, documentFileName, documentType, guarantorNote },
-        authHeader(token)
-      );
+      let payload;
+      const headers = { ...authHeader(token).headers };
+
+      // If there is an actual file, use FormData for multipart/form-data upload
+      if (documentFile) {
+        payload = new FormData();
+        payload.append('document', documentFile); // this key must match multer .single('document')
+        if (documentHash) payload.append('documentHash', documentHash);
+        if (documentFileName) payload.append('documentFileName', documentFileName);
+        if (documentType) payload.append('documentType', documentType);
+        if (guarantorNote) payload.append('guarantorNote', guarantorNote);
+      } else {
+        // Fallback or manual entry
+        payload = { documentHash, documentFileName, documentType, guarantorNote };
+      }
+
+      const { data } = await axios.put(`${API}/guarantor/${id}/approve`, payload, { headers });
       return data;
     } catch (err) {
       const msg = err?.response?.data?.message || err.message;

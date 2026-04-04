@@ -98,7 +98,7 @@ export default function GuarantorRequest() {
           </div>
           <h1 style={{ fontSize: 28, fontWeight: 800, color: '#342f30', marginBottom: 12 }}>Request Sent!</h1>
           <p style={{ color: '#8a7e80', fontSize: 16, marginBottom: 8, lineHeight: 1.7 }}>
-            <strong>{sentTo?.name}</strong> has received an email notification.
+            <strong>{sentTo?.walletAddress?.slice(0,6)}…</strong> has received an email notification.
             Once they approve, you can create your loan on the Borrow page.
           </p>
           <p style={{ color: '#8a7e80', fontSize: 14, marginBottom: 32 }}>
@@ -216,11 +216,13 @@ export default function GuarantorRequest() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: 'white', fontWeight: 700, fontSize: 18,
                 }}>
-                  {foundUser.name.charAt(0).toUpperCase()}
+                  {foundUser.walletAddress ? '0x' : 'U'}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontWeight: 700, fontSize: 16, color: '#342f30' }}>{foundUser.name}</span>
+                    <span style={{ fontWeight: 700, fontSize: 16, color: '#342f30' }} title={foundUser.walletAddress}>
+                      {foundUser.walletAddress?.slice(0,6)}…{foundUser.walletAddress?.slice(-4)}
+                    </span>
                     {foundUser.zkVerified && (
                       <span style={{
                         fontSize: 11, fontWeight: 700, color: '#00373f',
@@ -232,14 +234,14 @@ export default function GuarantorRequest() {
                     )}
                   </div>
                   <p style={{ fontSize: 12, color: '#8a7e80', fontFamily: 'monospace', marginTop: 2 }}>
-                    {foundUser.walletAddress.slice(0, 10)}…{foundUser.walletAddress.slice(-8)}
+                    Registered Guarantor
                   </p>
                 </div>
                 <CheckCircle size={22} color="#00373f" />
               </div>
 
               <div style={{ fontSize: 13, color: '#8a7e80', display: 'flex', gap: 16 }}>
-                <span>Role: <strong style={{ color: '#342f30', textTransform: 'capitalize' }}>{foundUser.role}</strong></span>
+                <span>Role: <strong style={{ color: '#342f30', textTransform: 'capitalize' }}>{foundUser.role || 'Unspecified'}</strong></span>
                 <span>Identity: <strong style={{ color: foundUser.zkVerified ? '#00373f' : '#c4803a' }}>
                   {foundUser.zkVerified ? '✓ ZK Verified' : 'Not ZK verified'}
                 </strong></span>
@@ -255,7 +257,7 @@ export default function GuarantorRequest() {
               Step 2 — Set Guarantee Terms
             </h3>
             <p style={{ fontSize: 13, color: '#8a7e80', marginBottom: 16 }}>
-              Specify how much <strong>{foundUser.name}</strong> will be liable for if you default on your future loan.
+              Specify how much <strong>{foundUser.walletAddress?.slice(0,6)}…</strong> will be liable for if you default on your future loan.
             </p>
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -308,9 +310,9 @@ export default function GuarantorRequest() {
               }}>
                 <AlertTriangle size={16} color="#c4803a" style={{ flexShrink: 0, marginTop: 1 }} />
                 <p style={{ fontSize: 13, color: '#815249', lineHeight: 1.6 }}>
-                  By sending this request, you confirm that <strong>{foundUser.name}</strong> has verbally
+                  By sending this request, you confirm that <strong>{foundUser.walletAddress?.slice(0,6)}…</strong> has verbally
                   agreed to guarantee your future loan. An email notification will be sent{' '}
-                  <strong>only to their registered email</strong>. They must approve before you can use them
+                  <strong>only to their registered address (if configured)</strong>. They must approve before you can use them
                   when creating a loan.
                 </p>
               </div>
@@ -323,7 +325,7 @@ export default function GuarantorRequest() {
               >
                 {loading
                   ? <><div className="spinner spinner-sm" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} />Sending…</>
-                  : <><Send size={16} /> Send Guarantee Request to {foundUser.name}</>
+                  : <><Send size={16} /> Send Guarantee Request to {foundUser.walletAddress?.slice(0,6)}…</>
                 }
               </button>
             </form>

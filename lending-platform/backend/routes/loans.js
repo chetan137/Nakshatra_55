@@ -120,13 +120,14 @@ router.get('/available', async (req, res, next) => {
     const skip  = (page - 1) * limit;
 
     const [loans, total] = await Promise.all([
-      Loan.find({ status: 'pending' })
-        .populate('borrower', 'walletAddress role')
+      Loan.find({ status: 'pending', guarantorStatus: { $ne: 'pending' } }) // Only show if guarantor has approved (or doesn't exist)
+        .populate('borrower', 'walletAddress role name')
+        .populate('guarantorRequest', 'documentUrl documentType documentFileName guarantorAddress status')
         .sort({ riskScore: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean({ virtuals: true }),
-      Loan.countDocuments({ status: 'pending' }),
+      Loan.countDocuments({ status: 'pending', guarantorStatus: { $ne: 'pending' } }),
     ]);
 
     res.json({ success: true, loans, page, limit, total, pages: Math.ceil(total / limit) });

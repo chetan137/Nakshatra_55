@@ -21,6 +21,7 @@ const {
   sendGuarantorRequestEmail,
   sendGuarantorResponseEmail,
 } = require('../services/emailService');
+const { uploadDocument, deleteFile } = require('../services/cloudinaryService');
 
 const router = express.Router();
 
@@ -253,28 +254,61 @@ router.get('/loan/:loanId', verifyToken, async (req, res) => {
 // Body: { documentHash?, documentType?, guarantorNote? }
 router.put('/:id/approve', verifyToken, async (req, res) => {
   try {
-    const record = await Guarantor.findById(req.params.id)
+    // 1. Process multipart upload first
+    try {
+      await uploadDocument(req, res);
+    } catch (uploadErr) {
+      if (uploadErr.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, message: 'File is too large (max 10MB)' });
+      }
+      return res.status(400).json({ success: false, message: 'Error uploading document: ' + uploadErr.message });
+    }
+
+    const { id } = req.params;
+    const record = await Guarantor.findById(id)
       .populate('borrower',  'name email walletAddress')
       .populate('guarantor', 'name walletAddress')
       .populate('loan',      'principal _id');
 
-    if (!record) return res.status(404).json({ success: false, message: 'Request not found' });
+    if (!record) {
+      // Clean up uploaded file if record not found
+      if (req.file) await deleteFile(req.file.filename, req.file.mimetype.includes('pdf') || req.file.mimetype.includes('word') ? 'raw' : 'auto');
+      return res.status(404).json({ success: false, message: 'Request not found' });
+    }
 
     // Only the guarantor user can approve
     if (String(record.guarantor?._id) !== String(req.user._id)) {
+      if (req.file) await deleteFile(req.file.filename, req.file.mimetype.includes('pdf') || req.file.mimetype.includes('word') ? 'raw' : 'auto');
       return res.status(403).json({ success: false, message: 'Only the requested guarantor can approve' });
     }
     if (record.status !== 'pending') {
+      if (req.file) await deleteFile(req.file.filename, req.file.mimetype.includes('pdf') || req.file.mimetype.includes('word') ? 'raw' : 'auto');
       return res.status(400).json({ success: false, message: `Request is already ${record.status}` });
     }
 
-    const { documentHash = null, documentFileName = null, documentType = null, guarantorNote = '' } = req.body;
+    const { documentHash = null, documentType = null, guarantorNote = '' } = req.body;
+    let documentUrl = null;
+    let documentPublicId = null;
+    let documentFileName = req.body.documentFileName || null;
+
+    if (req.file) {
+      documentUrl = req.file.path; // Cloudinary HTTPS URL
+      documentPublicId = req.file.filename; // Cloudinary public_id
+      documentFileName = req.file.originalname;
+    }
+
+    // Clean up old file if replacing
+    if (record.documentPublicId && req.file) {
+      await deleteFile(record.documentPublicId, record.documentType ? (record.documentFileName && record.documentFileName.match(/\.(pdf|doc|docx)$/i) ? 'raw' : 'auto') : 'auto');
+    }
 
     record.status            = 'approved';
     record.documentHash      = documentHash;
+    record.documentUrl       = documentUrl;
+    record.documentPublicId  = documentPublicId;
     record.documentFileName  = documentFileName;
     record.documentType      = documentType;
-    record.guarantorNote     = guarantorNote.trim();
+    record.guarantorNote     = guarantorNote !== undefined && guarantorNote !== null ? String(guarantorNote).trim() : '';
     record.respondedAt       = new Date();
     await record.save();
 

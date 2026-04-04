@@ -185,8 +185,8 @@ function ApproveModal({ request, onConfirm, onClose, loading }) {
             ⚠️ You are guaranteeing {request.guaranteeAmountEth} ETH
           </p>
           <p style={{ fontSize: 13, color: '#815249', lineHeight: 1.6 }}>
-            If <strong>{request.borrower?.name}</strong> defaults on this loan, you will be responsible
-            for repaying <strong>{request.guaranteeAmountEth} ETH</strong>.
+            If <strong>{request.borrower?.walletAddress?.slice(0,6)}…</strong> defaults on this loan, you will be responsible
+          for repaying <strong>{request.guaranteeAmountEth} ETH</strong>.
           </p>
         </div>
 
@@ -328,7 +328,7 @@ function ApproveModal({ request, onConfirm, onClose, loading }) {
           <button
             className="btn"
             style={{ flex: 1, background: '#00373f', color: 'white' }}
-            onClick={() => onConfirm({ documentHash: docHash || null, documentFileName: docFileName || null, documentType: docType || null, guarantorNote: docNote })}
+            onClick={() => onConfirm({ documentFile: uploadedFile || null, documentHash: docHash || null, documentFileName: docFileName || null, documentType: docType || null, guarantorNote: docNote })}
             disabled={loading || hashing}
           >
             {loading
@@ -357,8 +357,8 @@ function RejectModal({ request, onConfirm, onClose, loading }) {
       <div style={{ background: 'white', borderRadius: 20, padding: '32px', width: '100%', maxWidth: 440 }}>
         <h2 style={{ fontSize: 20, fontWeight: 800, color: '#342f30', marginBottom: 16 }}>Decline Request</h2>
         <p style={{ fontSize: 14, color: '#8a7e80', marginBottom: 20 }}>
-          You're declining the guarantee request from <strong>{request.borrower?.name}</strong>.
-          They will be notified by email.
+          You're declining the guarantee request from <strong>{request.borrower?.walletAddress?.slice(0,6)}…</strong>.
+          They will be notified by email (if configured).
         </p>
         <div style={{ marginBottom: 20 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: '#342f30', display: 'block', marginBottom: 6 }}>
@@ -548,11 +548,13 @@ export default function GuarantorInbox() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         color: 'white', fontWeight: 700,
                       }}>
-                        {borrow?.name?.charAt(0).toUpperCase() || 'B'}
+                        {borrow?.walletAddress ? '0x' : 'B'}
                       </div>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontWeight: 700, fontSize: 15 }}>{borrow?.name}</span>
+                          <span style={{ fontWeight: 700, fontSize: 15 }} title={borrow?.walletAddress}>
+                            {borrow?.walletAddress?.slice(0, 6)}…{borrow?.walletAddress?.slice(-4)}
+                          </span>
                           {borrow?.zkVerified && <ShieldCheck size={14} color="#00373f" title="ZK Verified" />}
                         </div>
                         <p style={{ fontSize: 12, color: '#8a7e80', fontFamily: 'monospace' }}>
@@ -691,12 +693,12 @@ export default function GuarantorInbox() {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                         <span style={{ fontWeight: 700, fontSize: 15 }}>
-                          {guarantor?.name || req.guarantorAddress?.slice(0, 10) + '…'}
+                          {req.guarantorAddress?.slice(0, 6)}…{req.guarantorAddress?.slice(-4)}
                         </span>
                         {guarantor?.zkVerified && <ShieldCheck size={13} color="#00373f" />}
                       </div>
                       <p style={{ fontSize: 12, color: '#8a7e80', fontFamily: 'monospace' }}>
-                        {req.guarantorAddress?.slice(0, 10)}…{req.guarantorAddress?.slice(-8)}
+                        Registered Guarantor
                       </p>
                     </div>
                     <span style={{

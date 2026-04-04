@@ -57,9 +57,10 @@ const guarantorSchema = new mongoose.Schema({
 
   // ── Document verification (by guarantor) ─────────────────
   // Guarantor uploads a doc proving their ability to guarantee
-  // Stored as a URL/IPFS hash — we only store metadata, not the file
-  documentHash:     { type: String, default: null }, // SHA-256 hex of uploaded file (or manual IPFS hash/ref)
-  documentFileName: { type: String, default: null }, // original filename for display
+  documentHash:      { type: String, default: null }, // SHA-256 hex (integrity check, legacy/manual)
+  documentUrl:       { type: String, default: null }, // ✅ Cloudinary HTTPS URL — primary storage
+  documentPublicId:  { type: String, default: null }, // Cloudinary public_id (needed for deletion)
+  documentFileName:  { type: String, default: null }, // original filename for display
   documentType:    {
     type: String,
     enum: ['bank_statement', 'income_proof', 'government_id', 'property_deed', 'other', null],
