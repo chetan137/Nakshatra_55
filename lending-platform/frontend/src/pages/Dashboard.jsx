@@ -27,7 +27,7 @@ export default function Dashboard() {
 
   function handleLogout() {
     logout();
-    toast.success('Logged out', { style: { background: '#1A1040', color: '#fff' } });
+    toast.success('Logged out', { style: { background: '#342f30', color: '#fff' } });
     navigate('/login', { replace: true });
   }
 
@@ -40,8 +40,8 @@ export default function Dashboard() {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <Activity size={18} />, action: () => setActiveNav('dashboard') },
-    { id: 'borrow',    label: 'Borrow',    icon: <TrendingDown size={18} />, action: () => navigate('/borrow') },
-    { id: 'lend',      label: 'Lend',      icon: <TrendingUp size={18} />,   action: () => navigate('/lend') },
+    ...(user.role === 'borrower' ? [{ id: 'borrow', label: 'Borrow', icon: <TrendingDown size={18} />, action: () => navigate('/borrow') }] : []),
+    ...(user.role === 'lender' ? [{ id: 'lend', label: 'Lend', icon: <TrendingUp size={18} />, action: () => navigate('/lend') }] : []),
     { id: 'history',   label: 'History',   icon: <History size={18} />,      action: () => navigate('/history') },
   ];
 
@@ -50,7 +50,7 @@ export default function Dashboard() {
       {/* ── Sidebar ── */}
       <aside className="dash-sidebar">
         <div className="dash-sidebar-logo">
-          <span style={{ color: '#6B4EFF' }}>⬡</span> Go Secure
+          <span style={{ color: '#815249' }}>⬡</span> Go Secure
         </div>
         <nav className="dash-sidebar-nav">
           {navItems.map(item => (
@@ -77,7 +77,7 @@ export default function Dashboard() {
             <h1 className="section-heading" style={{ color: 'var(--text-card-primary)', fontSize: 26 }}>
               Welcome back, <span style={{ color: 'var(--accent-bright)' }}>{user.name}</span>!
             </h1>
-            <p style={{ color: '#6B7280', fontSize: 14, marginTop: 4 }}>
+            <p style={{ color: '#8a7e80', fontSize: 14, marginTop: 4 }}>
               {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
           </div>
@@ -85,7 +85,7 @@ export default function Dashboard() {
             <div className="dash-avatar">{user.name?.charAt(0).toUpperCase()}</div>
             <div>
               <span className="text-small" style={{ fontWeight: 600, display: 'block' }}>{user.name}</span>
-              <span style={{ fontSize: 11, color: '#6B7280', textTransform: 'capitalize' }}>{user.role}</span>
+              <span style={{ fontSize: 11, color: '#8a7e80', textTransform: 'capitalize' }}>{user.role}</span>
             </div>
           </div>
         </header>
@@ -93,64 +93,68 @@ export default function Dashboard() {
         {/* ── Stats Grid ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 32 }}>
           <StatCard
-            icon={<TrendingDown size={22} color="#6B4EFF" />}
+            icon={<TrendingDown size={22} color="#60180b" />}
             label="Total Borrowed"
             value={loading ? '…' : `${stats?.totalBorrowed?.toFixed(4) || '0.0000'} ETH`}
             sub={`${stats?.loansAsBorrower || 0} loans`}
-            color="#6B4EFF"
+            color="#60180b"
           />
           <StatCard
-            icon={<TrendingUp size={22} color="#00C896" />}
+            icon={<TrendingUp size={22} color="#00373f" />}
             label="Total Lent"
             value={loading ? '…' : `${stats?.totalLent?.toFixed(4) || '0.0000'} ETH`}
             sub={`${stats?.loansAsLender || 0} loans`}
-            color="#00C896"
+            color="#00373f"
           />
           <StatCard
-            icon={<Activity size={22} color="#FFB547" />}
+            icon={<Activity size={22} color="#c4803a" />}
             label="Active Loans"
             value={loading ? '…' : (stats?.activeBorrowed || 0) + (stats?.activeLent || 0)}
             sub={`${stats?.activeBorrowed || 0} borrowing · ${stats?.activeLent || 0} lending`}
-            color="#FFB547"
+            color="#c4803a"
           />
           <StatCard
-            icon={<CheckCircle size={22} color="#00A878" />}
+            icon={<CheckCircle size={22} color="#00373f" />}
             label="Successfully Repaid"
             value={loading ? '…' : stats?.repaid || 0}
             sub={stats?.defaulted ? `${stats.defaulted} defaulted` : 'No defaults'}
-            color="#00A878"
+            color="#00373f"
           />
         </div>
 
         {/* ── Quick Actions ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 32 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginBottom: 32 }}>
           {/* Borrow CTA */}
-          <div className="card-dark" style={{ background: 'linear-gradient(135deg, #2D1B69, #6B4EFF)' }}>
-            <h3 className="card-heading" style={{ color: 'white', marginBottom: 8 }}>
-              <TrendingDown size={20} style={{ marginRight: 8, verticalAlign: 'middle' }} />
-              Need Funds?
-            </h3>
-            <p style={{ color: '#C4B5FD', marginBottom: 20, fontSize: 14 }}>
-              Deposit crypto collateral and get ETH instantly. Smart contract handles everything.
-            </p>
-            <button className="btn btn-accent" onClick={() => navigate('/borrow')}>
-              <Plus size={16} /> Request Loan <ChevronRight size={16} />
-            </button>
-          </div>
+          {user.role === 'borrower' && (
+            <div className="card-dark" style={{ background: 'linear-gradient(135deg, #60180b, #815249)' }}>
+              <h3 className="card-heading" style={{ color: 'white', marginBottom: 8 }}>
+                <TrendingDown size={20} style={{ marginRight: 8, verticalAlign: 'middle' }} />
+                Need Funds?
+              </h3>
+              <p style={{ color: '#d4b8b3', marginBottom: 20, fontSize: 14 }}>
+                Deposit crypto collateral and get ETH instantly. Smart contract handles everything.
+              </p>
+              <button className="btn btn-accent" onClick={() => navigate('/borrow')}>
+                <Plus size={16} /> Request Loan <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
 
           {/* Lend CTA */}
-          <div className="card-dark" style={{ background: 'linear-gradient(135deg, #005A3C, #00C896)' }}>
-            <h3 className="card-heading" style={{ color: 'white', marginBottom: 8 }}>
-              <TrendingUp size={20} style={{ marginRight: 8, verticalAlign: 'middle' }} />
-              Earn Interest?
-            </h3>
-            <p style={{ color: '#B3FFE8', marginBottom: 20, fontSize: 14 }}>
-              Browse loan requests. Collateral is locked on-chain— your funds are protected.
-            </p>
-            <button className="btn" style={{ background: 'white', color: '#005A3C' }} onClick={() => navigate('/lend')}>
-              Browse Loans <ChevronRight size={16} />
-            </button>
-          </div>
+          {user.role === 'lender' && (
+            <div className="card-dark" style={{ background: 'linear-gradient(135deg, #002a31, #00373f)' }}>
+              <h3 className="card-heading" style={{ color: 'white', marginBottom: 8 }}>
+                <TrendingUp size={20} style={{ marginRight: 8, verticalAlign: 'middle' }} />
+                Earn Interest?
+              </h3>
+              <p style={{ color: '#b3e0d8', marginBottom: 20, fontSize: 14 }}>
+                Browse loan requests. Collateral is locked on-chain— your funds are protected.
+              </p>
+              <button className="btn" style={{ background: 'white', color: '#00373f' }} onClick={() => navigate('/lend')}>
+                Browse Loans <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── Profile + Wallet ── */}
@@ -173,10 +177,10 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="dash-info-row">
-              <CheckCircle size={18} color={user.isEmailVerified ? '#00C896' : '#FFB547'} />
+              <CheckCircle size={18} color={user.isEmailVerified ? '#00373f' : '#c4803a'} />
               <div>
                 <span className="text-tiny" style={{ color: 'var(--text-card-muted)' }}>Email Status</span>
-                <p className="text-body" style={{ color: user.isEmailVerified ? '#00A878' : '#E65100' }}>
+                <p className="text-body" style={{ color: user.isEmailVerified ? '#00373f' : '#815249' }}>
                   {user.isEmailVerified ? 'Verified ✓' : 'Not verified'}
                 </p>
               </div>
@@ -191,21 +195,25 @@ export default function Dashboard() {
             </h3>
             {wallet.account ? (
               <>
-                <div style={{ background: 'rgba(107,78,255,0.3)', borderRadius: 10, padding: '10px 14px', marginBottom: 20 }}>
-                  <p style={{ fontSize: 11, color: '#C4B5FD', marginBottom: 4 }}>Connected</p>
+                <div style={{ background: 'rgba(129,82,73,0.3)', borderRadius: 10, padding: '10px 14px', marginBottom: 20 }}>
+                  <p style={{ fontSize: 11, color: '#d4b8b3', marginBottom: 4 }}>Connected</p>
                   <p style={{ fontSize: 14, color: 'white', fontWeight: 700, wordBreak: 'break-all' }}>
                     {wallet.account}
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <button className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', fontSize: 13 }}
-                    onClick={() => navigate('/borrow')}>
-                    Borrow
-                  </button>
-                  <button className="btn" style={{ flex: 1, background: '#6B4EFF', color: 'white', fontSize: 13 }}
-                    onClick={() => navigate('/lend')}>
-                    Lend
-                  </button>
+                  {user.role === 'borrower' && (
+                    <button className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', fontSize: 13 }}
+                      onClick={() => navigate('/borrow')}>
+                      Borrow
+                    </button>
+                  )}
+                  {user.role === 'lender' && (
+                    <button className="btn" style={{ flex: 1, background: '#60180b', color: 'white', fontSize: 13 }}
+                      onClick={() => navigate('/lend')}>
+                      Lend
+                    </button>
+                  )}
                 </div>
               </>
             ) : (
@@ -225,9 +233,9 @@ export default function Dashboard() {
 
           {/* View History */}
           <div className="card" style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => navigate('/history')}>
-            <History size={36} color="#6B4EFF" style={{ marginBottom: 12 }} />
+            <History size={36} color="#815249" style={{ marginBottom: 12 }} />
             <p className="card-heading" style={{ marginBottom: 8 }}>Loan History</p>
-            <p style={{ color: '#6B7280', fontSize: 14, marginBottom: 16 }}>
+            <p style={{ color: '#8a7e80', fontSize: 14, marginBottom: 16 }}>
               View all your loans, track status, repay, and liquidate.
             </p>
             <span className="btn btn-secondary" style={{ fontSize: 14, padding: '10px 20px' }}>
@@ -244,11 +252,11 @@ function StatCard({ icon, label, value, sub, color }) {
   return (
     <div className="card" style={{ textAlign: 'left' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: 12, color: '#8a7e80', fontWeight: 600 }}>{label}</span>
         <div style={{ background: `${color}15`, borderRadius: 10, padding: 8 }}>{icon}</div>
       </div>
       <p style={{ fontSize: 24, fontWeight: 800, color, marginBottom: 4 }}>{value}</p>
-      <p style={{ fontSize: 12, color: '#9CA3AF' }}>{sub}</p>
+      <p style={{ fontSize: 12, color: '#8a7e80' }}>{sub}</p>
     </div>
   );
 }

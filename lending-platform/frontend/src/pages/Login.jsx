@@ -25,7 +25,7 @@ export default function Login() {
     try {
       const res = await loginAPI(form);
       login(res.data.token, res.data.user);
-      toast.success(`Welcome back, ${res.data.user.name}!`, { style: { background: '#1A1040', color: '#fff' }, iconTheme: { primary: '#00C896', secondary: '#fff' } });
+      toast.success(`Welcome back, ${res.data.user.name}!`, { style: { background: '#342f30', color: '#fff' }, iconTheme: { primary: '#00373f', secondary: '#fff' } });
       navigate('/dashboard', { replace: true });
     } catch (err) {
       const data = err.response?.data;
@@ -50,7 +50,7 @@ export default function Login() {
         <div className="auth-split-left">
           <div className="auth-card">
             <div className="auth-header">
-              <div className="auth-icon-wrap"><LogIn size={28} color="#6B4EFF" /></div>
+              <div className="auth-icon-wrap"><LogIn size={28} color="#60180b" /></div>
               <h1 className="auth-title">Welcome Back</h1>
               <p className="auth-subtitle">Sign in to your Go Secure account</p>
             </div>

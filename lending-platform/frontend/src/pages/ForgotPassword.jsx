@@ -22,7 +22,7 @@ export default function ForgotPassword() {
     setLoading(true);
     try {
       await forgotPassword({ email });
-      toast.success('If this email exists, an OTP has been sent', { style: { background: '#1A1040', color: '#fff' }, iconTheme: { primary: '#00C896', secondary: '#fff' } });
+      toast.success('If this email exists, an OTP has been sent', { style: { background: '#342f30', color: '#fff' }, iconTheme: { primary: '#00373f', secondary: '#fff' } });
       setStep('otp');
     } catch {
       toast.error('Something went wrong');
@@ -38,7 +38,7 @@ export default function ForgotPassword() {
     try {
       const res = await verifyResetOTP({ email, otp });
       sessionStorage.setItem('lendchain_resetToken', res.data.resetToken);
-      toast.success('OTP verified! Set your new password', { style: { background: '#1A1040', color: '#fff' }, iconTheme: { primary: '#00C896', secondary: '#fff' } });
+      toast.success('OTP verified! Set your new password', { style: { background: '#342f30', color: '#fff' }, iconTheme: { primary: '#00373f', secondary: '#fff' } });
       navigate('/reset-password');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Invalid OTP');
@@ -53,7 +53,7 @@ export default function ForgotPassword() {
       <div className="page-auth" style={{ paddingTop: '100px' }}>
         <div className="auth-card">
           <div className="auth-header">
-            <div className="auth-icon-wrap"><KeyRound size={28} color="#6B4EFF" /></div>
+            <div className="auth-icon-wrap"><KeyRound size={28} color="#60180b" /></div>
             <h1 className="auth-title">Forgot Password</h1>
             <p className="auth-subtitle">
               {step === 'email'

@@ -6,11 +6,11 @@ import { getMyLoans, repayLoan as repayAPI, liquidateLoan as liquidateAPI, getLo
 import { useWallet } from '../hooks/useWallet';
 
 const STATUS_CONFIG = {
-  pending:   { icon: <Clock size={14} />,          color: '#E65100', bg: '#FFF3E0', label: 'Pending' },
-  active:    { icon: <CheckCircle size={14} />,     color: '#00A878', bg: '#E6FFF7', label: 'Active' },
-  repaid:    { icon: <CheckCircle size={14} />,     color: '#6B4EFF', bg: '#F5F3FF', label: 'Repaid' },
-  defaulted: { icon: <AlertTriangle size={14} />,   color: '#C62828', bg: '#FFEBEE', label: 'Defaulted' },
-  cancelled: { icon: <XCircle size={14} />,         color: '#6B7280', bg: '#F3F4F6', label: 'Cancelled' },
+  pending:   { icon: <Clock size={14} />,          color: '#815249', bg: '#fef2f0', label: 'Pending' },
+  active:    { icon: <CheckCircle size={14} />,     color: '#00373f', bg: '#e6f0ef', label: 'Active' },
+  repaid:    { icon: <CheckCircle size={14} />,     color: '#60180b', bg: '#f5e8e5', label: 'Repaid' },
+  defaulted: { icon: <AlertTriangle size={14} />,   color: '#ba1a1a', bg: '#fde8e8', label: 'Defaulted' },
+  cancelled: { icon: <XCircle size={14} />,         color: '#8a7e80', bg: '#F3F4F6', label: 'Cancelled' },
 };
 
 function LoanRow({ loan, onRepay, onLiquidate, currentUserId }) {
@@ -39,11 +39,11 @@ function LoanRow({ loan, onRepay, onLiquidate, currentUserId }) {
             }}>
               {cfg.icon} {cfg.label}
             </span>
-            <span style={{ fontSize: 12, color: '#6B7280' }}>
+            <span style={{ fontSize: 12, color: '#8a7e80' }}>
               {isBorrower ? '📤 You borrowed' : '📥 You lent'}
             </span>
             {isOverdue && (
-              <span style={{ background: '#FFEBEE', color: '#C62828', borderRadius: 50, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
+              <span style={{ background: '#fde8e8', color: '#ba1a1a', borderRadius: 50, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
                 ⚠️ Overdue
               </span>
             )}
@@ -55,7 +55,7 @@ function LoanRow({ loan, onRepay, onLiquidate, currentUserId }) {
             <Info label="Rate"         value={`${interestPct}%/yr`} />
             <Info label="Duration"     value={`${loan.durationDays} days`} />
             {daysLeft !== null && isActive && (
-              <Info label="Days left" value={isOverdue ? '⚠️ OVERDUE' : `${daysLeft}d`} color={isOverdue ? '#C62828' : '#00A878'} />
+              <Info label="Days left" value={isOverdue ? '⚠️ OVERDUE' : `${daysLeft}d`} color={isOverdue ? '#ba1a1a' : '#00373f'} />
             )}
             {loan.counterparty && (
               <Info label={isBorrower ? 'Lender' : 'Borrower'} value={loan.counterparty} />
@@ -66,19 +66,19 @@ function LoanRow({ loan, onRepay, onLiquidate, currentUserId }) {
           <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
             {loan.createTxHash && (
               <a href={`${sepolia}${loan.createTxHash}`} target="_blank" rel="noopener noreferrer"
-                style={{ fontSize: 11, color: '#6B4EFF', display: 'flex', alignItems: 'center', gap: 4 }}>
+                style={{ fontSize: 11, color: '#60180b', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <ExternalLink size={10} /> Create Tx
               </a>
             )}
             {loan.fundTxHash && (
               <a href={`${sepolia}${loan.fundTxHash}`} target="_blank" rel="noopener noreferrer"
-                style={{ fontSize: 11, color: '#6B4EFF', display: 'flex', alignItems: 'center', gap: 4 }}>
+                style={{ fontSize: 11, color: '#60180b', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <ExternalLink size={10} /> Fund Tx
               </a>
             )}
             {loan.repayTxHash && (
               <a href={`${sepolia}${loan.repayTxHash}`} target="_blank" rel="noopener noreferrer"
-                style={{ fontSize: 11, color: '#00A878', display: 'flex', alignItems: 'center', gap: 4 }}>
+                style={{ fontSize: 11, color: '#00373f', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <ExternalLink size={10} /> Repay Tx
               </a>
             )}
@@ -106,8 +106,8 @@ function LoanRow({ loan, onRepay, onLiquidate, currentUserId }) {
 function Info({ label, value, bold, accent, color }) {
   return (
     <div>
-      <span style={{ fontSize: 11, color: '#9CA3AF', display: 'block' }}>{label}</span>
-      <span style={{ fontWeight: bold ? 700 : 500, color: color || (accent ? '#6B4EFF' : '#1A1040'), fontSize: 14 }}>{value}</span>
+      <span style={{ fontSize: 11, color: '#8a7e80', display: 'block' }}>{label}</span>
+      <span style={{ fontWeight: bold ? 700 : 500, color: color || (accent ? '#60180b' : '#342f30'), fontSize: 14 }}>{value}</span>
     </div>
   );
 }
@@ -201,11 +201,11 @@ export default function LoanHistory() {
           <span>
             Liquidate this loan? Collateral goes to you.{' '}
             <button onClick={() => { toast.dismiss(t.id); resolve(true); }}
-              style={{ marginLeft: 8, background: '#C62828', color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 700 }}>
+              style={{ marginLeft: 8, background: '#ba1a1a', color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 700 }}>
               Confirm
             </button>
             <button onClick={() => { toast.dismiss(t.id); resolve(false); }}
-              style={{ marginLeft: 4, background: '#E5E7EB', color: '#374151', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
+              style={{ marginLeft: 4, background: '#E5E7EB', color: '#342f30', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
               Cancel
             </button>
           </span>
@@ -233,7 +233,7 @@ export default function LoanHistory() {
   }
 
   return (
-    <div className="page-dashboard" style={{ background: '#F5F3FF' }}>
+    <div className="page-dashboard" style={{ background: '#f5e8e5' }}>
       <div style={{
         position: 'fixed', top: 0, left: 0, right: 0, height: 64,
         background: 'white', boxShadow: '0 2px 16px rgba(45,27,105,0.08)',
@@ -243,7 +243,7 @@ export default function LoanHistory() {
         <button onClick={() => navigate('/dashboard')} className="btn btn-ghost" style={{ padding: '8px 12px', fontSize: 14 }}>
           <ArrowLeft size={16} /> Dashboard
         </button>
-        <h1 style={{ fontWeight: 800, fontSize: 18, color: '#1A1040' }}>My Loan History</h1>
+        <h1 style={{ fontWeight: 800, fontSize: 18, color: '#342f30' }}>My Loan History</h1>
         <button onClick={fetchLoans} className="btn btn-ghost" style={{ padding: '8px 12px' }}>
           <RefreshCw size={16} />
         </button>
@@ -258,9 +258,9 @@ export default function LoanHistory() {
               onClick={() => setFilter(f)}
               style={{
                 padding: '8px 16px', borderRadius: 50, fontSize: 13, fontWeight: 600,
-                background: filter === f ? '#6B4EFF' : 'white',
-                color: filter === f ? 'white' : '#6B7280',
-                border: `1px solid ${filter === f ? '#6B4EFF' : '#E5E7EB'}`,
+                background: filter === f ? '#60180b' : 'white',
+                color: filter === f ? 'white' : '#8a7e80',
+                border: `1px solid ${filter === f ? '#60180b' : '#E5E7EB'}`,
                 cursor: 'pointer', transition: 'all 0.2s',
                 textTransform: 'capitalize',
               }}

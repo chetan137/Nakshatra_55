@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Wallet, DollarSign, Clock, Percent, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -10,6 +10,13 @@ export default function Borrow() {
   const navigate   = useNavigate();
   const { user }   = useAuth();
   const wallet     = useWallet();
+
+  useEffect(() => {
+    if (user?.role === 'lender') {
+      toast.error('Lenders cannot borrow funds.');
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
 
   const [form, setForm] = useState({
     principal:       '',
@@ -84,7 +91,7 @@ export default function Borrow() {
   }
 
   return (
-    <div className="page-auth" style={{ background: 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)' }}>
+    <div className="page-auth" style={{ background: 'linear-gradient(135deg, #342f30 0%, #60180b 50%, #342f30 100%)' }}>
       <div className="auth-card" style={{ maxWidth: 520 }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
@@ -104,12 +111,12 @@ export default function Borrow() {
         {/* Wallet pill */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
-          background: wallet.account ? '#E6FFF7' : '#FFF3E0',
-          border: `1px solid ${wallet.account ? '#00C896' : '#FFB547'}`,
+          background: wallet.account ? '#e6f0ef' : '#fef2f0',
+          border: `1px solid ${wallet.account ? '#00373f' : '#c4803a'}`,
           borderRadius: 12, padding: '10px 14px', marginBottom: 24,
         }}>
-          <Wallet size={16} color={wallet.account ? '#00A878' : '#E65100'} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: wallet.account ? '#00A878' : '#E65100' }}>
+          <Wallet size={16} color={wallet.account ? '#00373f' : '#815249'} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: wallet.account ? '#00373f' : '#815249' }}>
             {wallet.account
               ? `${wallet.account.slice(0, 6)}…${wallet.account.slice(-4)}`
               : 'Wallet not connected'}
@@ -118,7 +125,7 @@ export default function Borrow() {
             <button
               onClick={wallet.connect}
               disabled={wallet.connecting}
-              style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, background: '#FF8C69', color: 'white', border: 'none', borderRadius: 8, padding: '4px 12px', cursor: 'pointer' }}
+              style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, background: '#60180b', color: 'white', border: 'none', borderRadius: 8, padding: '4px 12px', cursor: 'pointer' }}
             >
               Connect
             </button>
@@ -140,7 +147,7 @@ export default function Borrow() {
           {/* Collateral */}
           <div className="form-group">
             <label>
-              <AlertTriangle size={14} style={{ marginRight: 6, verticalAlign: 'middle', color: ratioSafe === false ? '#FF4D4D' : ratioSafe === true ? '#00C896' : undefined }} />
+              <AlertTriangle size={14} style={{ marginRight: 6, verticalAlign: 'middle', color: ratioSafe === false ? '#ba1a1a' : ratioSafe === true ? '#00373f' : undefined }} />
               Collateral (ETH) — minimum 150% of loan
             </label>
             <input
@@ -148,12 +155,12 @@ export default function Borrow() {
               value={form.collateral}
               onChange={e => setForm(f => ({ ...f, collateral: e.target.value }))}
               disabled={loading}
-              style={{ borderColor: ratioSafe === false ? '#FF4D4D' : ratioSafe === true ? '#00C896' : undefined }}
+              style={{ borderColor: ratioSafe === false ? '#ba1a1a' : ratioSafe === true ? '#00373f' : undefined }}
             />
             {collateralRatio && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600,
-                color: ratioSafe ? '#00A878' : '#FF4D4D',
+                color: ratioSafe ? '#00373f' : '#ba1a1a',
               }}>
                 {ratioSafe ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
                 Collateral ratio: {collateralRatio}% {ratioSafe ? '✓ Safe' : '✗ Too low'}
@@ -193,19 +200,19 @@ export default function Borrow() {
           {/* Summary box */}
           {totalRepay && (
             <div style={{
-              background: 'linear-gradient(135deg, #F5F3FF, #EEE6FF)',
-              border: '1px solid rgba(107,78,255,0.2)',
+              background: 'linear-gradient(135deg, #fef2f0, #f5e8e5)',
+              border: '1px solid rgba(96,24,11,0.2)',
               borderRadius: 14, padding: '16px 18px',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, fontWeight: 700, color: '#2D1B69', fontSize: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, fontWeight: 700, color: '#60180b', fontSize: 14 }}>
                 <Info size={14} /> Loan Summary
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 13 }}>
-                <span style={{ color: '#6B7280' }}>You receive:</span>       <span style={{ fontWeight: 700 }}>{form.principal} ETH</span>
-                <span style={{ color: '#6B7280' }}>Collateral locked:</span> <span style={{ fontWeight: 700 }}>{form.collateral} ETH</span>
-                <span style={{ color: '#6B7280' }}>Interest ({interestPercent}% for {form.durationDays}d):</span>
+                <span style={{ color: '#8a7e80' }}>You receive:</span>       <span style={{ fontWeight: 700 }}>{form.principal} ETH</span>
+                <span style={{ color: '#8a7e80' }}>Collateral locked:</span> <span style={{ fontWeight: 700 }}>{form.collateral} ETH</span>
+                <span style={{ color: '#8a7e80' }}>Interest ({interestPercent}% for {form.durationDays}d):</span>
                 <span style={{ fontWeight: 700 }}>~{estimatedInterest} ETH</span>
-                <span style={{ color: '#6B7280' }}>Total to repay:</span>    <span style={{ fontWeight: 700, color: '#6B4EFF' }}>{totalRepay} ETH</span>
+                <span style={{ color: '#8a7e80' }}>Total to repay:</span>    <span style={{ fontWeight: 700, color: '#60180b' }}>{totalRepay} ETH</span>
               </div>
             </div>
           )}
@@ -217,8 +224,8 @@ export default function Borrow() {
                 <div key={s} style={{
                   width: 28, height: 28, borderRadius: '50%', fontSize: 13, fontWeight: 700,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: ['chain', 'backend', 'done'].indexOf(step) >= i ? '#6B4EFF' : '#E5E7EB',
-                  color: ['chain', 'backend', 'done'].indexOf(step) >= i ? 'white' : '#9CA3AF',
+                  background: ['chain', 'backend', 'done'].indexOf(step) >= i ? '#60180b' : '#E5E7EB',
+                  color: ['chain', 'backend', 'done'].indexOf(step) >= i ? 'white' : '#8a7e80',
                   transition: 'all 0.3s',
                 }}>{i + 1}</div>
               ))}

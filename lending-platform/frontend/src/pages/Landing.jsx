@@ -16,12 +16,12 @@ export default function Landing() {
   ];
 
   const features = [
-    { icon: <Shield size={32} color="#6B4EFF" />, title: 'Non-Custodial', desc: 'You always control your assets. Smart contracts are the only intermediary — fully transparent and audited.' },
-    { icon: <Zap size={32} color="#FF5C34" />, title: 'Instant Liquidity', desc: 'Borrow against your crypto collateral in minutes. No credit checks, no paperwork, no waiting.' },
-    { icon: <TrendingUp size={32} color="#00C896" />, title: 'High Yield Lending', desc: 'Earn competitive APY by supplying liquidity to lending pools. Withdraw any time.' },
-    { icon: <Globe size={32} color="#6B4EFF" />, title: 'Truly Borderless', desc: 'Access decentralized finance from anywhere in the world. No bank account required.' },
-    { icon: <Lock size={32} color="#FF5C34" />, title: 'Battle-Tested Security', desc: 'Smart contracts audited by top security firms. Multi-sig governance and emergency pause mechanisms.' },
-    { icon: <BarChart3 size={32} color="#00C896" />, title: 'Real-Time Markets', desc: 'Live interest rates, collateral ratios, and market depth — full on-chain transparency.' },
+    { icon: <Shield size={32} color="#60180b" />, title: 'Non-Custodial', desc: 'You always control your assets. Smart contracts are the only intermediary — fully transparent and audited.' },
+    { icon: <Zap size={32} color="#00373f" />, title: 'Instant Liquidity', desc: 'Borrow against your crypto collateral in minutes. No credit checks, no paperwork, no waiting.' },
+    { icon: <TrendingUp size={32} color="#00373f" />, title: 'High Yield Lending', desc: 'Earn competitive APY by supplying liquidity to lending pools. Withdraw any time.' },
+    { icon: <Globe size={32} color="#60180b" />, title: 'Truly Borderless', desc: 'Access decentralized finance from anywhere in the world. No bank account required.' },
+    { icon: <Lock size={32} color="#00373f" />, title: 'Battle-Tested Security', desc: 'Smart contracts audited by top security firms. Multi-sig governance and emergency pause mechanisms.' },
+    { icon: <BarChart3 size={32} color="#00373f" />, title: 'Real-Time Markets', desc: 'Live interest rates, collateral ratios, and market depth — full on-chain transparency.' },
   ];
 
   const steps = [
@@ -152,7 +152,7 @@ export default function Landing() {
               <div key={t.name} className="card-tinted testimonial-card">
                 <div className="testimonial-stars">
                   {Array(t.rating).fill(0).map((_, i) => (
-                    <Star key={i} size={16} fill="#FFB547" color="#FFB547" />
+                    <Star key={i} size={16} fill="#c4803a" color="#c4803a" />
                   ))}
                 </div>
                 <p className="text-body" style={{ color: 'var(--text-primary)', marginBottom: '20px', fontStyle: 'italic' }}>

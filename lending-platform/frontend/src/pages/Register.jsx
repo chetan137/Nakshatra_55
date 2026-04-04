@@ -13,7 +13,7 @@ export default function Register() {
   const { login } = useAuth();
 
   const [step, setStep] = useState('register');
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '', role: '' });
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -26,6 +26,7 @@ export default function Register() {
   }
 
   function validate() {
+    if (!form.role) { toast.error('Please select a role: Borrower or Lender'); return false; }
     if (form.name.trim().length < 2) { toast.error('Name must be at least 2 characters'); return false; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { toast.error('Enter a valid email'); return false; }
     if (form.password.length < 6) { toast.error('Password must be at least 6 characters'); return false; }
@@ -39,11 +40,11 @@ export default function Register() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const res = await register({ name: form.name, email: form.email, password: form.password });
+      const res = await register({ name: form.name, email: form.email, password: form.password, role: form.role });
       setUserId(res.data.userId);
       setStep('verify');
       setCooldown(60);
-      toast.success(res.data.message, { style: { background: '#1A1040', color: '#fff' }, iconTheme: { primary: '#00C896', secondary: '#fff' } });
+      toast.success(res.data.message, { style: { background: '#342f30', color: '#fff' }, iconTheme: { primary: '#00373f', secondary: '#fff' } });
     } catch (err) {
       toast.error(err.response?.data?.message || 'Registration failed');
     } finally {
@@ -104,6 +105,24 @@ export default function Register() {
                 </div>
 
                 <form onSubmit={handleRegisterSubmit} className="auth-form">
+                  <div className="form-group" style={{ marginBottom: 20 }}>
+                    <label>Select Role <span style={{ color: '#ba1a1a' }}>*</span></label>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <div
+                        onClick={() => setForm(f => ({ ...f, role: 'borrower' }))}
+                        style={{ flex: 1, padding: '14px 12px', borderRadius: 12, border: `2px solid ${form.role === 'borrower' ? '#60180b' : 'rgba(96,24,11,0.2)'}`, background: form.role === 'borrower' ? 'rgba(96,24,11,0.1)' : 'transparent', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s', fontWeight: form.role === 'borrower' ? 700 : 500, color: form.role === 'borrower' ? '#60180b' : 'var(--text-primary)', userSelect: 'none' }}
+                      >
+                        🏦 Borrower
+                      </div>
+                      <div
+                        onClick={() => setForm(f => ({ ...f, role: 'lender' }))}
+                        style={{ flex: 1, padding: '14px 12px', borderRadius: 12, border: `2px solid ${form.role === 'lender' ? '#00373f' : 'rgba(0,55,63,0.2)'}`, background: form.role === 'lender' ? 'rgba(0,55,63,0.1)' : 'transparent', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s', fontWeight: form.role === 'lender' ? 700 : 500, color: form.role === 'lender' ? '#00373f' : 'var(--text-primary)', userSelect: 'none' }}
+                      >
+                        💰 Lender
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="form-group">
                     <label htmlFor="reg-name">Full Name</label>
                     <input id="reg-name" name="name" placeholder="John Doe" value={form.name} onChange={handleChange} />

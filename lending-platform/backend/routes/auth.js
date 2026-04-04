@@ -56,13 +56,17 @@ router.post(
       .withMessage('Password must be at least 6 characters')
       .matches(/\d/)
       .withMessage('Password must contain at least 1 number'),
+    body('role')
+      .optional()
+      .isIn(['borrower', 'lender'])
+      .withMessage('Role must be either borrower or lender'),
   ],
   async (req, res, next) => {
     try {
       const errResponse = formatErrors(req, res);
       if (errResponse) return;
 
-      const { name, email, password } = req.body;
+      const { name, email, password, role } = req.body;
 
       // Check duplicate
       const existingUser = await User.findOne({ email });
@@ -85,6 +89,7 @@ router.post(
         name,
         email,
         password: hashedPassword,
+        role: role || 'borrower',
         emailOTP: otp,
         emailOTPExpiry: otpExpiry,
         isEmailVerified: false,

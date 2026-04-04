@@ -39,7 +39,7 @@ export default function VerifyEmail() {
       login(res.data.token, res.data.user);
       sessionStorage.removeItem('lendchain_userId');
       sessionStorage.removeItem('lendchain_email');
-      toast.success('Email verified!', { style: { background: '#1A1040', color: '#fff' }, iconTheme: { primary: '#00C896', secondary: '#fff' } });
+      toast.success('Email verified!', { style: { background: '#342f30', color: '#fff' }, iconTheme: { primary: '#00373f', secondary: '#fff' } });
       navigate('/dashboard', { replace: true });
     } catch (err) {
       toast.error(err.response?.data?.message || 'Verification failed');
@@ -53,7 +53,7 @@ export default function VerifyEmail() {
     try {
       await resendOTP({ userId });
       setCooldown(60);
-      toast.success('OTP resent!', { style: { background: '#1A1040', color: '#fff' }, iconTheme: { primary: '#00C896', secondary: '#fff' } });
+      toast.success('OTP resent!', { style: { background: '#342f30', color: '#fff' }, iconTheme: { primary: '#00373f', secondary: '#fff' } });
     } catch (err) {
       const secs = err.response?.data?.secondsRemaining;
       if (secs) setCooldown(secs);
@@ -67,7 +67,7 @@ export default function VerifyEmail() {
       <div className="page-auth" style={{ paddingTop: '100px' }}>
         <div className="auth-card">
           <div className="auth-header">
-            <div className="auth-icon-wrap"><MailCheck size={28} color="#6B4EFF" /></div>
+            <div className="auth-icon-wrap"><MailCheck size={28} color="#60180b" /></div>
             <h1 className="auth-title">Verify Email</h1>
             <p className="auth-subtitle">We sent a 6-digit code to<br /><strong>{email}</strong></p>
           </div>

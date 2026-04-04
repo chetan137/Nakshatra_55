@@ -30,7 +30,7 @@ export default function ResetPassword() {
     try {
       await resetPassword({ resetToken, newPassword: form.password });
       sessionStorage.removeItem('lendchain_resetToken');
-      toast.success('Password reset successful!', { style: { background: '#1A1040', color: '#fff' }, iconTheme: { primary: '#00C896', secondary: '#fff' } });
+      toast.success('Password reset successful!', { style: { background: '#342f30', color: '#fff' }, iconTheme: { primary: '#00373f', secondary: '#fff' } });
       navigate('/login', { replace: true });
     } catch (err) {
       toast.error(err.response?.data?.message || 'Reset failed');
@@ -45,7 +45,7 @@ export default function ResetPassword() {
       <div className="page-auth" style={{ paddingTop: '100px' }}>
         <div className="auth-card">
           <div className="auth-header">
-            <div className="auth-icon-wrap"><ShieldCheck size={28} color="#6B4EFF" /></div>
+            <div className="auth-icon-wrap"><ShieldCheck size={28} color="#60180b" /></div>
             <h1 className="auth-title">Reset Password</h1>
             <p className="auth-subtitle">Choose a strong new password</p>
           </div>

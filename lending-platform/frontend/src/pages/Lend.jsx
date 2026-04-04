@@ -7,9 +7,9 @@ import { getAvailable, fundLoan as fundLoanAPI } from '../api/loanApi';
 import { useAuth } from '../context/AuthContext';
 
 const STATUS_COLORS = {
-  safe: { bg: '#E6FFF7', color: '#00A878', label: '✅ Safe' },
-  warn: { bg: '#FFF3E0', color: '#E65100', label: '⚠️ Medium' },
-  risk: { bg: '#FFEBEE', color: '#C62828', label: '❌ Risky' },
+  safe: { bg: '#e6f0ef', color: '#00373f', label: '✅ Safe' },
+  warn: { bg: '#fef2f0', color: '#815249', label: '⚠️ Medium' },
+  risk: { bg: '#fde8e8', color: '#ba1a1a', label: '❌ Risky' },
 };
 
 function getRiskLevel(riskScore) {
@@ -38,14 +38,14 @@ function LoanCard({ loan, onFund }) {
       {/* Borrower */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <div style={{
-          width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #6B4EFF, #FF8C69)',
+          width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #60180b, #815249)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700,
         }}>
           {loan.borrower?.name?.charAt(0).toUpperCase() || 'B'}
         </div>
         <div>
           <p style={{ fontWeight: 700, fontSize: 15 }}>{loan.borrower?.name || 'Borrower'}</p>
-          <p style={{ fontSize: 12, color: '#6B7280' }}>
+          <p style={{ fontSize: 12, color: '#8a7e80' }}>
             {loan.borrowerAddress?.slice(0, 6)}…{loan.borrowerAddress?.slice(-4)}
           </p>
         </div>
@@ -53,39 +53,39 @@ function LoanCard({ loan, onFund }) {
 
       {/* Stats grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-        <Stat icon={<TrendingUp size={14} color="#6B4EFF" />} label="Loan Amount" value={`${loan.principal} ETH`} accent />
-        <Stat icon={<Shield size={14} color="#00C896" />}     label="Collateral"  value={`${loan.collateral} ETH`} />
+        <Stat icon={<TrendingUp size={14} color="#60180b" />} label="Loan Amount" value={`${loan.principal} ETH`} accent />
+        <Stat icon={<Shield size={14} color="#00373f" />}     label="Collateral"  value={`${loan.collateral} ETH`} />
         <Stat icon={<div style={{ fontSize: 12 }}>%</div>}   label="Collateral Ratio" value={`${Number(ratio).toFixed(0)}%`}
-          color={Number(ratio) >= 150 ? '#00A878' : '#FF4D4D'} />
-        <Stat icon={<Clock size={14} color="#FFB547" />}     label="Duration"    value={`${loan.durationDays} days`} />
+          color={Number(ratio) >= 150 ? '#00373f' : '#ba1a1a'} />
+        <Stat icon={<Clock size={14} color="#c4803a" />}     label="Duration"    value={`${loan.durationDays} days`} />
       </div>
 
       {/* Interest + profit */}
       <div style={{
-        background: 'linear-gradient(135deg, #F5F3FF, #EEE6FF)',
+        background: 'linear-gradient(135deg, #fef2f0, #f5e8e5)',
         borderRadius: 12, padding: '12px 14px', marginBottom: 16,
         display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
       }}>
         <div>
-          <p style={{ fontSize: 11, color: '#6B7280' }}>Annual Rate</p>
-          <p style={{ fontWeight: 700, color: '#6B4EFF', fontSize: 16 }}>{interestPct}%</p>
+          <p style={{ fontSize: 11, color: '#8a7e80' }}>Annual Rate</p>
+          <p style={{ fontWeight: 700, color: '#60180b', fontSize: 16 }}>{interestPct}%</p>
         </div>
         <div>
-          <p style={{ fontSize: 11, color: '#6B7280' }}>You earn ~</p>
-          <p style={{ fontWeight: 700, color: '#00A878', fontSize: 16 }}>{profit} ETH</p>
+          <p style={{ fontSize: 11, color: '#8a7e80' }}>You earn ~</p>
+          <p style={{ fontWeight: 700, color: '#00373f', fontSize: 16 }}>{profit} ETH</p>
         </div>
       </div>
 
       {/* Risk score bar */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-          <span style={{ color: '#6B7280' }}>Borrower Risk Score</span>
+          <span style={{ color: '#8a7e80' }}>Borrower Risk Score</span>
           <span style={{ fontWeight: 700, color: riskLevel.color }}>{loan.riskScore}/100</span>
         </div>
         <div style={{ height: 6, background: '#E5E7EB', borderRadius: 99 }}>
           <div style={{
             height: '100%', width: `${loan.riskScore}%`,
-            background: `linear-gradient(90deg, #FF4D4D, #FFB547, #00C896)`,
+            background: `linear-gradient(90deg, #ba1a1a, #c4803a, #00373f)`,
             backgroundSize: '100px 100%',
             backgroundPosition: `${100 - loan.riskScore}% 0`,
             borderRadius: 99, transition: 'width 1s ease',
@@ -105,9 +105,9 @@ function Stat({ icon, label, value, accent, color }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
         {icon}
-        <span style={{ fontSize: 11, color: '#6B7280' }}>{label}</span>
+        <span style={{ fontSize: 11, color: '#8a7e80' }}>{label}</span>
       </div>
-      <p style={{ fontWeight: 700, fontSize: 15, color: color || (accent ? '#6B4EFF' : '#1A1040') }}>{value}</p>
+      <p style={{ fontWeight: 700, fontSize: 15, color: color || (accent ? '#60180b' : '#342f30') }}>{value}</p>
     </div>
   );
 }
@@ -158,13 +158,13 @@ function FundModal({ loan, wallet, onClose, onSuccess }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
           {[
-            ['You send', `${loan.principal} ETH`, '#6B4EFF'],
-            ['Borrower gets', `${loan.principal} ETH`, '#2D1B69'],
-            [`Interest earned (${interestPct}%/yr)`, `~${profit} ETH`, '#00A878'],
-            ['You receive back', `~${totalReturn} ETH`, '#00A878'],
+            ['You send', `${loan.principal} ETH`, '#60180b'],
+            ['Borrower gets', `${loan.principal} ETH`, '#342f30'],
+            [`Interest earned (${interestPct}%/yr)`, `~${profit} ETH`, '#00373f'],
+            ['You receive back', `~${totalReturn} ETH`, '#00373f'],
           ].map(([label, val, color]) => (
-            <div key={label} style={{ background: '#F5F3FF', borderRadius: 12, padding: '12px 14px' }}>
-              <p style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>{label}</p>
+            <div key={label} style={{ background: '#fef2f0', borderRadius: 12, padding: '12px 14px' }}>
+              <p style={{ fontSize: 11, color: '#8a7e80', marginBottom: 4 }}>{label}</p>
               <p style={{ fontWeight: 700, color, fontSize: 15 }}>{val}</p>
             </div>
           ))}
@@ -193,6 +193,13 @@ export default function Lend() {
   const [selected, setSelected] = useState(null);
   const [loading,  setLoading]  = useState(true);
 
+  useEffect(() => {
+    if (user?.role === 'borrower') {
+      toast.error('Borrowers cannot fund loans.');
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
+
   async function fetchLoans() {
     setLoading(true);
     try {
@@ -208,13 +215,13 @@ export default function Lend() {
   useEffect(() => { fetchLoans(); }, []);
 
   return (
-    <div className="page-dashboard" style={{ background: '#0f0c29' }}>
+    <div className="page-dashboard" style={{ background: '#342f30' }}>
       {/* Simple topbar */}
       <div style={{
         position: 'fixed', top: 0, left: 0, right: 0, height: 64,
-        background: 'rgba(26,16,64,0.9)', backdropFilter: 'blur(10px)',
+        background: 'rgba(52,47,48,0.9)', backdropFilter: 'blur(10px)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 32px', zIndex: 100, borderBottom: '1px solid rgba(107,78,255,0.2)',
+        padding: '0 32px', zIndex: 100, borderBottom: '1px solid rgba(129,82,73,0.2)',
       }}>
         <button onClick={() => navigate('/dashboard')} className="btn btn-ghost" style={{ padding: '8px 12px', fontSize: 14, color: 'white' }}>
           <ArrowLeft size={16} /> Dashboard
@@ -226,7 +233,7 @@ export default function Lend() {
       </div>
 
       <div style={{ paddingTop: 80, padding: '96px 32px 32px' }}>
-        <p style={{ color: '#C4B5FD', marginBottom: 32, fontSize: 15 }}>
+        <p style={{ color: '#d4b8b3', marginBottom: 32, fontSize: 15 }}>
           Browse borrower requests. All collateral is locked on-chain — your funds are protected.
         </p>
 

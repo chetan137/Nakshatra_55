@@ -46,7 +46,7 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: ['borrower', 'lender', 'admin'],
-    default: 'borrower',
+    required: [true, 'Role is required'],
   },
   avatar: {
     type: String,

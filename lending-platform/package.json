@@ -6,7 +6,7 @@
     "dev": "concurrently --names \"FRONTEND,BACKEND\" --prefix-colors \"cyan,green\" \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:all": "concurrently --names \"FRONTEND,BACKEND,CHAIN\" --prefix-colors \"cyan,green,magenta\" \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:blockchain\"",
     "dev:frontend": "cd frontend && npm run dev",
-    "dev:backend": "cd backend && npm start",
+    "dev:backend": "cd backend && npm run dev",
     "dev:blockchain": "cd blockchain && npx hardhat node"
   },
   "devDependencies": {
