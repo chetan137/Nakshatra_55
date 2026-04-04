@@ -268,13 +268,14 @@ router.put('/:id/approve', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: `Request is already ${record.status}` });
     }
 
-    const { documentHash = null, documentType = null, guarantorNote = '' } = req.body;
+    const { documentHash = null, documentFileName = null, documentType = null, guarantorNote = '' } = req.body;
 
-    record.status          = 'approved';
-    record.documentHash    = documentHash;
-    record.documentType    = documentType;
-    record.guarantorNote   = guarantorNote.trim();
-    record.respondedAt     = new Date();
+    record.status            = 'approved';
+    record.documentHash      = documentHash;
+    record.documentFileName  = documentFileName;
+    record.documentType      = documentType;
+    record.guarantorNote     = guarantorNote.trim();
+    record.respondedAt       = new Date();
     await record.save();
 
     // Update loan's guarantor status
@@ -297,11 +298,12 @@ router.put('/:id/approve', verifyToken, async (req, res) => {
       success: true,
       message: 'Guarantee approved. The borrower has been notified.',
       record: {
-        status:        'approved',
+        status:           'approved',
         documentHash,
+        documentFileName,
         documentType,
         guarantorNote,
-        respondedAt:   record.respondedAt,
+        respondedAt:      record.respondedAt,
       },
     });
   } catch (err) {

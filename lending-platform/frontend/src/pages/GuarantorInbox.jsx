@@ -14,7 +14,7 @@
  *  - Cancel pending requests
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, UserCheck, UserX, FileText, Upload, CheckCircle,
@@ -43,11 +43,122 @@ const DOC_TYPES = [
   { value: 'other',          label: 'Other' },
 ];
 
+// ── VerifyDocumentButton ─────────────────────────────────────────────────────
+// Re-hashes an uploaded file and compares against stored SHA-256 documentHash.
+function VerifyDocumentButton({ storedHash }) {
+  const [result,  setResult]  = useState(null); // null | 'match' | 'mismatch' | 'manual'
+  const [checking, setChecking] = useState(false);
+  const fileRef = useRef(null);
+
+  // Only show if the stored hash looks like a SHA-256 (64 hex chars)
+  const isSHA256 = /^[0-9a-f]{64}$/.test(storedHash || '');
+
+  async function handleVerifyFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setChecking(true);
+    setResult(null);
+    try {
+      const buffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      const hex = Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+      setResult(hex === storedHash ? 'match' : 'mismatch');
+    } catch {
+      setResult('error');
+    } finally {
+      setChecking(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  if (!storedHash) return null;
+
+  return (
+    <div style={{ marginTop: 6 }}>
+      {isSHA256 ? (
+        <>
+          <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={handleVerifyFile} />
+          <button
+            onClick={() => { setResult(null); fileRef.current?.click(); }}
+            disabled={checking}
+            style={{
+              background: 'none', border: '1px solid rgba(0,55,63,0.3)', borderRadius: 8,
+              padding: '4px 10px', fontSize: 11, color: '#00373f', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 600,
+            }}
+          >
+            {checking
+              ? <><div className="spinner spinner-sm" style={{ width: 10, height: 10, borderWidth: 2 }} /> Verifying…</>
+              : <><CheckCircle size={11} /> Verify Document</>
+            }
+          </button>
+          {result === 'match' && (
+            <span style={{
+              marginLeft: 8, fontSize: 11, color: '#00373f', fontWeight: 700,
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+            }}>
+              <CheckCircle size={12} /> Hash matches — document is authentic
+            </span>
+          )}
+          {result === 'mismatch' && (
+            <span style={{
+              marginLeft: 8, fontSize: 11, color: '#ba1a1a', fontWeight: 700,
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+            }}>
+              <AlertTriangle size={12} /> Hash mismatch — document may be tampered
+            </span>
+          )}
+        </>
+      ) : (
+        <span style={{ fontSize: 11, color: '#8a7e80', fontStyle: 'italic' }}>
+          Reference stored (manual entry — not verifiable by hash)
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ── ApproveModal ─────────────────────────────────────────────────────────────
+async function computeSHA256(file) {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 function ApproveModal({ request, onConfirm, onClose, loading }) {
-  const [docType,  setDocType]  = useState('');
-  const [docNote,  setDocNote]  = useState('');
-  const [docHash,  setDocHash]  = useState('');
+  const [docType,      setDocType]      = useState('');
+  const [docNote,      setDocNote]      = useState('');
+  const [docHash,      setDocHash]      = useState('');
+  const [docFileName,  setDocFileName]  = useState('');
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [hashing,      setHashing]      = useState(false);
+  const fileInputRef = useRef(null);
+
+  async function handleFileChange(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadedFile(file);
+    setDocFileName(file.name);
+    setHashing(true);
+    try {
+      const hash = await computeSHA256(file);
+      setDocHash(hash);
+    } catch {
+      setDocHash(file.name); // fallback to filename if crypto unavailable
+    } finally {
+      setHashing(false);
+    }
+  }
+
+  function handleRemoveFile() {
+    setUploadedFile(null);
+    setDocHash('');
+    setDocFileName('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
 
   return (
     <div style={{
@@ -79,7 +190,7 @@ function ApproveModal({ request, onConfirm, onClose, loading }) {
           </p>
         </div>
 
-        {/* Document upload (metadata only — no file upload to server) */}
+        {/* Document type */}
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: '#342f30', display: 'block', marginBottom: 6 }}>
             Verification Document Type <span style={{ color: '#8a7e80', fontWeight: 400 }}>(optional but recommended)</span>
@@ -99,21 +210,99 @@ function ApproveModal({ request, onConfirm, onClose, loading }) {
 
         {docType && (
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#342f30', display: 'block', marginBottom: 6 }}>
-              Document Reference / Hash
-              <span style={{ fontWeight: 400, color: '#8a7e80' }}> (IPFS hash, file name, or reference number)</span>
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#342f30', display: 'block', marginBottom: 8 }}>
+              Upload Document
+              <span style={{ fontWeight: 400, color: '#8a7e80' }}> (optional)</span>
             </label>
+
+            {/* File drop zone */}
+            {!uploadedFile ? (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  border: '2px dashed rgba(96,24,11,0.25)', borderRadius: 12,
+                  padding: '20px 16px', textAlign: 'center', cursor: 'pointer',
+                  background: 'rgba(96,24,11,0.02)', marginBottom: 10,
+                  transition: 'border-color 0.2s, background 0.2s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(96,24,11,0.5)'; e.currentTarget.style.background = 'rgba(96,24,11,0.05)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(96,24,11,0.25)'; e.currentTarget.style.background = 'rgba(96,24,11,0.02)'; }}
+              >
+                <Upload size={22} color="#815249" style={{ marginBottom: 8 }} />
+                <p style={{ fontSize: 13, color: '#342f30', fontWeight: 600, marginBottom: 2 }}>
+                  Click to select a file
+                </p>
+                <p style={{ fontSize: 11, color: '#8a7e80' }}>
+                  PDF, JPG, PNG, DOCX — any format accepted
+                </p>
+              </div>
+            ) : (
+              <div style={{
+                background: 'rgba(0,55,63,0.06)', border: '1px solid rgba(0,55,63,0.2)',
+                borderRadius: 10, padding: '10px 14px', marginBottom: 10,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: hashing ? 6 : (docHash ? 6 : 0) }}>
+                  <FileText size={18} color="#00373f" style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#342f30', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {uploadedFile.name}
+                    </p>
+                    <p style={{ fontSize: 11, color: '#8a7e80' }}>
+                      {(uploadedFile.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleRemoveFile}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ba1a1a', padding: 4, flexShrink: 0 }}
+                    title="Remove file"
+                  >
+                    <XCircle size={16} />
+                  </button>
+                </div>
+                {hashing && (
+                  <p style={{ fontSize: 11, color: '#8a7e80', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div className="spinner spinner-sm" style={{ width: 12, height: 12, borderWidth: 2 }} />
+                    Computing SHA-256 hash…
+                  </p>
+                )}
+                {!hashing && docHash && (
+                  <div style={{
+                    background: 'rgba(0,55,63,0.08)', borderRadius: 6, padding: '6px 10px',
+                    fontFamily: 'monospace', fontSize: 10, color: '#00373f',
+                    wordBreak: 'break-all', lineHeight: 1.5,
+                  }}>
+                    <span style={{ fontWeight: 700, fontFamily: 'inherit' }}>SHA-256: </span>{docHash}
+                  </div>
+                )}
+              </div>
+            )}
+
             <input
-              type="text"
-              placeholder="e.g. QmXoypiz..., salary_slip_march.pdf, HDFC-2024-03"
-              value={docHash}
-              onChange={e => setDocHash(e.target.value)}
-              style={{
-                width: '100%', padding: '10px 12px',
-                border: '1px solid rgba(96,24,11,0.2)', borderRadius: 10,
-                fontSize: 13, outline: 'none',
-              }}
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
             />
+
+            {/* Manual hash input — only show when no file is uploaded */}
+            {!uploadedFile && (
+              <>
+                <label style={{ fontSize: 12, color: '#8a7e80', display: 'block', marginBottom: 4 }}>
+                  Or enter reference manually (IPFS hash, file name, reference number)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. QmXoypiz..., salary_slip_march.pdf, HDFC-2024-03"
+                  value={docHash}
+                  onChange={e => setDocHash(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 12px',
+                    border: '1px solid rgba(96,24,11,0.2)', borderRadius: 10,
+                    fontSize: 13, outline: 'none',
+                  }}
+                />
+              </>
+            )}
           </div>
         )}
 
@@ -139,8 +328,8 @@ function ApproveModal({ request, onConfirm, onClose, loading }) {
           <button
             className="btn"
             style={{ flex: 1, background: '#00373f', color: 'white' }}
-            onClick={() => onConfirm({ documentHash: docHash, documentType: docType || null, guarantorNote: docNote })}
-            disabled={loading}
+            onClick={() => onConfirm({ documentHash: docHash || null, documentFileName: docFileName || null, documentType: docType || null, guarantorNote: docNote })}
+            disabled={loading || hashing}
           >
             {loading
               ? <div className="spinner spinner-sm" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} />
@@ -419,9 +608,26 @@ export default function GuarantorInbox() {
                     </div>
                   )}
                   {req.documentType && (
-                    <div style={{ fontSize: 12, color: '#00373f', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <FileText size={13} /> Document: {req.documentType.replace('_', ' ')}
-                      {req.documentHash && ` — ${req.documentHash.slice(0, 20)}…`}
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 12, color: '#00373f', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                        <FileText size={13} />
+                        <span style={{ fontWeight: 600 }}>{req.documentType.replace(/_/g, ' ')}</span>
+                        {req.documentFileName && (
+                          <span style={{ color: '#8a7e80', fontStyle: 'italic' }}>— {req.documentFileName}</span>
+                        )}
+                      </div>
+                      {req.documentHash && (
+                        <div style={{
+                          fontFamily: 'monospace', fontSize: 10, color: '#8a7e80',
+                          marginBottom: 4, wordBreak: 'break-all',
+                        }}>
+                          SHA-256: {req.documentHash.length === 64
+                            ? `${req.documentHash.slice(0, 16)}…${req.documentHash.slice(-8)}`
+                            : req.documentHash.slice(0, 28) + '…'
+                          }
+                        </div>
+                      )}
+                      <VerifyDocumentButton storedHash={req.documentHash} />
                     </div>
                   )}
 

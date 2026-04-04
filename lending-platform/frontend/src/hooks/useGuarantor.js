@@ -92,13 +92,13 @@ export function useGuarantor() {
     }
   }, []);
 
-  const approveRequest = useCallback(async (token, id, { documentHash, documentType, guarantorNote }) => {
+  const approveRequest = useCallback(async (token, id, { documentHash, documentFileName, documentType, guarantorNote }) => {
     setLoading(true);
     setError(null);
     try {
       const { data } = await axios.put(
         `${API}/guarantor/${id}/approve`,
-        { documentHash, documentType, guarantorNote },
+        { documentHash, documentFileName, documentType, guarantorNote },
         authHeader(token)
       );
       return data;
