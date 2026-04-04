@@ -57,6 +57,11 @@ const loanSchema = new mongoose.Schema({
   repaidAt:      { type: Date, default: null },
   liquidatedAt:  { type: Date, default: null },
 
+  // ── Margin call tracking (set by monitoringService) ─────────
+  marginCallIssuedAt: { type: Date, default: null },
+  marginCallDeadline: { type: Date, default: null },
+
+
   // ── Risk ───────────────────────────────────────────
   riskScore: { type: Number, default: 80 },
 

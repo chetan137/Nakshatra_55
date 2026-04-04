@@ -32,10 +32,10 @@ function getEmailHTML(name, otp, type) {
   const isVerify = type === 'verify';
   const heading = isVerify ? 'Verify your email' : 'Reset your password';
   const message = isVerify
-    ? 'Thanks for signing up with Go Secure! Use the code below to verify your email address and activate your account.'
-    : 'We received a request to reset your Go Secure password. Use the code below to continue.';
+    ? 'Thanks for signing up with LendChain! Use the code below to verify your email address and activate your account.'
+    : 'We received a request to reset your LendChain password. Use the code below to continue.';
   const warning = isVerify
-    ? "If you didn't create a Go Secure account, you can safely ignore this email."
+    ? "If you didn't create a LendChain account, you can safely ignore this email."
     : "If you didn't request a password reset, please ignore this email. Your password will remain unchanged.";
 
   return `
@@ -53,7 +53,7 @@ function getEmailHTML(name, otp, type) {
           <!-- Logo -->
           <tr>
             <td align="center" style="padding-bottom:32px;">
-              <span style="font-size:28px; font-weight:800; color:#6B4EFF;">Go</span><span style="font-size:28px; font-weight:800; color:#FF8C69;"> Secure</span>
+              <span style="font-size:28px; font-weight:800; color:#6B4EFF;">Lend</span><span style="font-size:28px; font-weight:800; color:#FF8C69;">Chain</span>
             </td>
           </tr>
           <!-- Card -->
@@ -76,7 +76,7 @@ function getEmailHTML(name, otp, type) {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:24px;">
-              <p style="margin:0; font-size:12px; color:#4A3F6B;">&copy; ${new Date().getFullYear()} Go Secure. All rights reserved.</p>
+              <p style="margin:0; font-size:12px; color:#4A3F6B;">&copy; ${new Date().getFullYear()} LendChain. All rights reserved.</p>
             </td>
           </tr>
         </table>
@@ -90,8 +90,8 @@ function getEmailHTML(name, otp, type) {
 async function sendOTPEmail(email, name, otp, type = 'verify') {
   const subject =
     type === 'verify'
-      ? 'Verify your Go Secure account'
-      : 'Reset your Go Secure password';
+      ? 'Verify your LendChain account'
+      : 'Reset your LendChain password';
 
   if (process.env.NODE_ENV !== 'production') {
     console.log(`\n========================================`);
@@ -142,4 +142,181 @@ async function sendOTPEmail(email, name, otp, type = 'verify') {
   }
 }
 
-module.exports = { sendOTPEmail };
+// ── Shared Brevo send helper ───────────────────────────────────
+async function sendBrevo(to, subject, htmlContent) {
+  const payload = {
+    sender: {
+      name:  process.env.EMAIL_FROM_NAME  || 'LendChain',
+      email: process.env.BREVO_SENDER_EMAIL,
+    },
+    to,
+    subject,
+    htmlContent,
+  };
+
+  try {
+    const response = await fetch(BREVO_API_URL, {
+      method: 'POST',
+      headers: {
+        'accept':       'application/json',
+        'content-type': 'application/json',
+        'api-key':      process.env.BREVO_API_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error('[EmailService] Brevo error:', response.status, err);
+      return;
+    }
+    const data = await response.json();
+    console.log(`[EmailService] Email sent to ${to.map(t => t.email).join(', ')} — messageId: ${data.messageId}`);
+  } catch (err) {
+    console.error('[EmailService] fetch failed:', err.message);
+  }
+}
+
+// ── Margin Call Alert ──────────────────────────────────────────
+/**
+ * Sent to BOTH borrower + lender when collateral ratio drops below 150%.
+ * @param {object} borrower   { name, email }
+ * @param {object} lender     { name, email }
+ * @param {object} loan       { _id, principal, collateral, durationDays }
+ * @param {number} currentRatio  e.g. 138 (percent)
+ * @param {Date}   deadline      48h from now
+ */
+async function sendMarginCallAlert(borrower, lender, loan, currentRatio, deadline) {
+  const deadlineStr = new Date(deadline).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const shortfall   = ((loan.principal * 1.5) - (loan.collateral * currentRatio / 100)).toFixed(4);
+
+  const html = `
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#0F0A1E;font-family:'Inter',Arial,sans-serif;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#0F0A1E;padding:40px 16px;">
+    <tr><td align="center">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="480" style="max-width:480px;width:100%;">
+        <tr><td align="center" style="padding-bottom:32px;">
+          <span style="font-size:28px;font-weight:800;color:#6B4EFF;">Lend</span><span style="font-size:28px;font-weight:800;color:#FF8C69;">Chain</span>
+        </td></tr>
+        <tr><td style="background:#1A1040;border-radius:20px;padding:40px 36px;">
+          <div style="background:#FF8C6920;border:1px solid #FF8C69;border-radius:12px;padding:16px 20px;margin-bottom:24px;">
+            <p style="margin:0;font-size:18px;font-weight:800;color:#FF8C69;">⚠️ Margin Call — Action Required</p>
+          </div>
+          <p style="margin:0 0 16px;font-size:15px;color:#C4B5FD;line-height:1.6;">
+            The collateral ratio on loan <strong style="color:#fff;">#${loan._id.toString().slice(-8)}</strong> has dropped to
+            <strong style="color:#FF8C69;">${currentRatio}%</strong> (minimum required: 150%).
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#8B7EC8;font-size:13px;">Loan Principal</td>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#fff;font-size:13px;text-align:right;">${loan.principal} ETH</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#8B7EC8;font-size:13px;">Current Collateral</td>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#fff;font-size:13px;text-align:right;">${loan.collateral} ETH</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#8B7EC8;font-size:13px;">Current Ratio</td>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#FF8C69;font-size:13px;font-weight:700;text-align:right;">${currentRatio}%</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;color:#8B7EC8;font-size:13px;">Deadline</td>
+              <td style="padding:8px 0;color:#FF8C69;font-size:13px;font-weight:700;text-align:right;">${deadlineStr} IST</td>
+            </tr>
+          </table>
+          <div style="background:#2D1B69;border-radius:12px;padding:16px 20px;margin-bottom:24px;">
+            <p style="margin:0 0 8px;color:#C4B5FD;font-size:13px;font-weight:600;">Borrower — you must act within 48 hours:</p>
+            <ul style="margin:0;padding-left:18px;color:#C4B5FD;font-size:13px;line-height:1.8;">
+              <li>Repay the full loan to recover your collateral</li>
+              <li>Or deposit ~${shortfall} ETH more collateral (login to LendChain)</li>
+            </ul>
+          </div>
+          <p style="margin:0;font-size:12px;color:#6B5FA5;line-height:1.6;">
+            If no action is taken by the deadline, this loan will be automatically liquidated and the collateral transferred to the lender.
+          </p>
+        </td></tr>
+        <tr><td align="center" style="padding-top:24px;">
+          <p style="margin:0;font-size:12px;color:#4A3F6B;">© ${new Date().getFullYear()} LendChain. All rights reserved.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  const recipients = [{ email: borrower.email, name: borrower.name }];
+  if (lender?.email) recipients.push({ email: lender.email, name: lender.name });
+
+  await sendBrevo(recipients, '⚠️ Margin Call — Your Loan Needs Attention', html);
+}
+
+// ── Liquidation Alert ──────────────────────────────────────────
+/**
+ * Sent after a loan is liquidated.
+ * @param {object} lender    { name, email }
+ * @param {object} borrower  { name, email }
+ * @param {object} loan      { _id, principal, collateral }
+ * @param {number} currentRatio  collateral ratio at time of liquidation
+ * @param {string} reason    'overdue' | 'price_drop'
+ */
+async function sendLiquidationAlert(lender, borrower, loan, currentRatio, reason) {
+  const reasonText = reason === 'overdue'
+    ? 'The loan passed its due date without repayment.'
+    : 'The collateral price dropped below the 120% liquidation threshold.';
+
+  const html = `
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#0F0A1E;font-family:'Inter',Arial,sans-serif;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#0F0A1E;padding:40px 16px;">
+    <tr><td align="center">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="480" style="max-width:480px;width:100%;">
+        <tr><td align="center" style="padding-bottom:32px;">
+          <span style="font-size:28px;font-weight:800;color:#6B4EFF;">Lend</span><span style="font-size:28px;font-weight:800;color:#FF8C69;">Chain</span>
+        </td></tr>
+        <tr><td style="background:#1A1040;border-radius:20px;padding:40px 36px;">
+          <div style="background:#C6282820;border:1px solid #C62828;border-radius:12px;padding:16px 20px;margin-bottom:24px;">
+            <p style="margin:0;font-size:18px;font-weight:800;color:#FF4D4D;">🔴 Loan Liquidated</p>
+          </div>
+          <p style="margin:0 0 16px;font-size:15px;color:#C4B5FD;line-height:1.6;">
+            Loan <strong style="color:#fff;">#${loan._id.toString().slice(-8)}</strong> has been liquidated.
+            ${reasonText}
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#8B7EC8;font-size:13px;">Principal</td>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#fff;font-size:13px;text-align:right;">${loan.principal} ETH</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#8B7EC8;font-size:13px;">Collateral (sent to lender)</td>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#00C896;font-size:13px;font-weight:700;text-align:right;">${loan.collateral} ETH</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;color:#8B7EC8;font-size:13px;">Final Ratio</td>
+              <td style="padding:8px 0;color:#FF4D4D;font-size:13px;font-weight:700;text-align:right;">${currentRatio ?? 'N/A'}%</td>
+            </tr>
+          </table>
+          <div style="background:#2D1B69;border-radius:12px;padding:16px 20px;">
+            <p style="margin:0;color:#C4B5FD;font-size:13px;">
+              <strong style="color:#fff;">Lender:</strong> The collateral (${loan.collateral} ETH) has been transferred to your wallet.<br><br>
+              <strong style="color:#fff;">Borrower:</strong> Your collateral has been used to settle this loan. Your on-chain reputation score has been updated.
+            </p>
+          </div>
+        </td></tr>
+        <tr><td align="center" style="padding-top:24px;">
+          <p style="margin:0;font-size:12px;color:#4A3F6B;">© ${new Date().getFullYear()} LendChain. All rights reserved.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  const recipients = [];
+  if (lender?.email)   recipients.push({ email: lender.email,   name: lender.name });
+  if (borrower?.email) recipients.push({ email: borrower.email, name: borrower.name });
+
+  if (recipients.length > 0) {
+    await sendBrevo(recipients, '🔴 Loan Liquidated — LendChain', html);
+  }
+}
+
+module.exports = { sendOTPEmail, sendMarginCallAlert, sendLiquidationAlert };

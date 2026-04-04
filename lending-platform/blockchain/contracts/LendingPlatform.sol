@@ -8,7 +8,7 @@ import "./libraries/LoanMath.sol";
  * @title  LendingPlatform
  * @author LendChain
  * @notice Peer-to-peer ETH lending with:
- *           • Collateral locking (minimum 150% of principal)
+ *           • Collateral locking (minimum 50% of principal)
  *           • Chainlink ETH/USD price-based liquidation (below 120%)
  *           • Simple interest accrual
  *           • Reputation tracking (completions / defaults)
@@ -16,7 +16,7 @@ import "./libraries/LoanMath.sol";
  *
  * ─── FLOW ───────────────────────────────────────────────────────────
  *  1. Borrower calls createLoan(principal, durationDays, interestRateBps)
- *       + sends ETH as msg.value (must be ≥ 150% of principal).
+ *       + sends ETH as msg.value (must be ≥ 50% of principal).
  *       Contract holds the collateral.
  *
  *  2. Lender calls fundLoan(loanId)
@@ -49,8 +49,8 @@ contract LendingPlatform {
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════════
 
-    /// @notice Minimum collateral ratio in percent (150 = 150%)
-    uint256 public constant MIN_COLLATERAL_RATIO  = 150;
+    /// @notice Minimum collateral ratio in percent (50 = 50%)
+    uint256 public constant MIN_COLLATERAL_RATIO  = 50;
 
     /// @notice Liquidation threshold in percent (120 = 120%)
     uint256 public constant LIQUIDATION_THRESHOLD = 120;
@@ -192,7 +192,7 @@ contract LendingPlatform {
      *   collateral ≥ principal × 150 / 100
      *
      * Example — borrower wants 1 ETH for 30 days at 12% APR:
-     *   createLoan(1 ether, 30, 1200)  { value: 1.5 ether }
+     *   createLoan(1 ether, 30, 1200)  { value: 0.5 ether }
      *
      * @return loanId  The newly created loan ID.
      */
@@ -206,11 +206,11 @@ contract LendingPlatform {
         require(interestRateBps > 0 && interestRateBps <= 10_000, "Rate: 1-10000 bps");
         require(msg.value > 0,                                  "Must deposit collateral");
 
-        // Collateral must be >= 150% of principal
-        // ratio = collateral * 100 / principal >= 150
+        // Collateral must be >= 50% of principal
+        // ratio = collateral * 100 / principal >= 50
         require(
             (msg.value * 100) / principal >= MIN_COLLATERAL_RATIO,
-            "Collateral must be >= 150% of principal"
+            "Collateral must be >= 50% of principal"
         );
 
         loanId = loanCounter++;

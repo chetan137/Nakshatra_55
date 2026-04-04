@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, CheckCircle, AlertTriangle, XCircle, RefreshCw, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle, AlertTriangle, XCircle, RefreshCw, ExternalLink, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getMyLoans, repayLoan as repayAPI, liquidateLoan as liquidateAPI, getLoanOwed } from '../api/loanApi';
+import { getMyLoans, repayLoan as repayAPI, liquidateLoan as liquidateAPI, getLoanOwed, getLoan, cancelLoan as cancelAPI } from '../api/loanApi';
 import { useWallet } from '../hooks/useWallet';
 
 const STATUS_CONFIG = {
@@ -13,25 +13,40 @@ const STATUS_CONFIG = {
   cancelled: { icon: <XCircle size={14} />,         color: '#8a7e80', bg: '#F3F4F6', label: 'Cancelled' },
 };
 
-function LoanRow({ loan, onRepay, onLiquidate, currentUserId }) {
-  const cfg = STATUS_CONFIG[loan.status] || STATUS_CONFIG.pending;
+// ── LoanRow ──────────────────────────────────────────────────
+function LoanRow({ loan, onRepay, onLiquidate, onCancel, currentUserId }) {
+  const cfg        = STATUS_CONFIG[loan.status] || STATUS_CONFIG.pending;
   const isBorrower = String(loan.borrower?._id || loan.borrower) === currentUserId;
   const isActive   = loan.status === 'active';
+  const isPending  = loan.status === 'pending';
   const isOverdue  = isActive && loan.dueDate && new Date() > new Date(loan.dueDate);
+
+  // Price-triggered liquidation — from on-chain enriched data
+  const onChainRatio        = loan.onChain ? Number(loan.onChain.collateralRatio ?? 0) : null;
+  const isPriceLiquidatable = isActive && !isOverdue && onChainRatio !== null && onChainRatio < 120;
+  const isLiquidatable      = isOverdue || isPriceLiquidatable;
+
+  // Collateral ratio colour for badge
+  const ratioColor = onChainRatio === null ? '#6B7280'
+    : onChainRatio >= 150 ? '#00A878'
+    : onChainRatio >= 120 ? '#E65100'
+    : '#C62828';
 
   const interestPct = (loan.interestRateBps / 100).toFixed(1);
   const daysLeft    = loan.dueDate
     ? Math.max(0, Math.ceil((new Date(loan.dueDate) - Date.now()) / 86400000))
     : null;
 
-  const sepolia = `https://sepolia.etherscan.io/tx/`;
+  const sepolia = 'https://sepolia.etherscan.io/tx/';
 
   return (
     <div className="card" style={{ marginBottom: 16, borderLeft: `4px solid ${cfg.color}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-        {/* Left info */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+
+        {/* ── Left: info ── */}
+        <div style={{ flex: 1 }}>
+          {/* Status row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
             <span style={{
               background: cfg.bg, color: cfg.color,
               borderRadius: 50, padding: '3px 10px', fontSize: 12, fontWeight: 700,
@@ -47,18 +62,35 @@ function LoanRow({ loan, onRepay, onLiquidate, currentUserId }) {
                 ⚠️ Overdue
               </span>
             )}
+            {isPriceLiquidatable && (
+              <span style={{ background: '#FFEBEE', color: '#C62828', borderRadius: 50, padding: '3px 10px', fontSize: 12, fontWeight: 700,
+                display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Zap size={11} /> Price Drop — Undercollateralised
+              </span>
+            )}
+            {/* Live collateral ratio badge for active loans */}
+            {isActive && onChainRatio !== null && (
+              <span style={{ background: `${ratioColor}18`, color: ratioColor, borderRadius: 50, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
+                Ratio: {onChainRatio}%
+              </span>
+            )}
           </div>
 
+          {/* Data grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '4px 24px', fontSize: 14 }}>
-            <Info label="Principal"    value={`${loan.principal} ETH`} bold accent />
-            <Info label="Collateral"   value={`${loan.collateral} ETH`} />
-            <Info label="Rate"         value={`${interestPct}%/yr`} />
-            <Info label="Duration"     value={`${loan.durationDays} days`} />
+            <Info label="Principal"  value={`${loan.principal} ETH`} bold accent />
+            <Info label="Collateral" value={`${loan.collateral} ETH`} />
+            <Info label="Rate"       value={`${interestPct}%/yr`} />
+            <Info label="Duration"   value={`${loan.durationDays} days`} />
             {daysLeft !== null && isActive && (
-              <Info label="Days left" value={isOverdue ? '⚠️ OVERDUE' : `${daysLeft}d`} color={isOverdue ? '#ba1a1a' : '#00373f'} />
+              <Info label="Days left" value={isOverdue ? '⚠️ OVERDUE' : `${daysLeft}d`}
+                color={isOverdue ? '#C62828' : '#00A878'} />
             )}
-            {loan.counterparty && (
-              <Info label={isBorrower ? 'Lender' : 'Borrower'} value={loan.counterparty} />
+            {loan.borrower?.name && !isBorrower && (
+              <Info label="Borrower" value={loan.borrower.name} />
+            )}
+            {loan.lender?.name && isBorrower && loan.lender && (
+              <Info label="Lender" value={loan.lender.name} />
             )}
           </div>
 
@@ -82,19 +114,42 @@ function LoanRow({ loan, onRepay, onLiquidate, currentUserId }) {
                 <ExternalLink size={10} /> Repay Tx
               </a>
             )}
+            {loan.liquidateTxHash && (
+              <a href={`${sepolia}${loan.liquidateTxHash}`} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 11, color: '#C62828', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <ExternalLink size={10} /> Liquidate Tx
+              </a>
+            )}
           </div>
         </div>
 
-        {/* Actions */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 140 }}>
+        {/* ── Right: actions ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 150 }}>
+          {/* Repay — borrower on active loan */}
           {isBorrower && isActive && (
             <button className="btn btn-accent" style={{ fontSize: 13, padding: '10px 16px' }} onClick={() => onRepay(loan)}>
               ↩️ Repay Loan
             </button>
           )}
-          {isOverdue && !isBorrower && (
+
+          {/* Liquidate — lender (or anyone) when overdue OR price-triggered */}
+          {isLiquidatable && !isBorrower && (
             <button className="btn btn-danger" style={{ fontSize: 13, padding: '10px 16px' }} onClick={() => onLiquidate(loan)}>
-              ⚡ Liquidate
+              <Zap size={14} /> {isPriceLiquidatable ? 'Liquidate (Price)' : 'Liquidate (Overdue)'}
+            </button>
+          )}
+          {/* Borrower can also trigger liquidation on overdue/price-drop */}
+          {isLiquidatable && isBorrower && (
+            <button className="btn btn-danger" style={{ fontSize: 13, padding: '10px 16px', opacity: 0.8 }} onClick={() => onLiquidate(loan)}>
+              <Zap size={14} /> Trigger Liquidation
+            </button>
+          )}
+
+          {/* Cancel — borrower on pending loan (not yet funded) */}
+          {isPending && isBorrower && (
+            <button className="btn btn-secondary" style={{ fontSize: 13, padding: '10px 16px', borderColor: '#C62828', color: '#C62828' }}
+              onClick={() => onCancel(loan)}>
+              ✕ Cancel & Recover
             </button>
           )}
         </div>
@@ -112,15 +167,14 @@ function Info({ label, value, bold, accent, color }) {
   );
 }
 
+// ── Main component ──────────────────────────────────────────
 export default function LoanHistory() {
-  const navigate = useNavigate();
-  const wallet   = useWallet();
+  const navigate  = useNavigate();
+  const wallet    = useWallet();
   const [loans,   setLoans]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter,  setFilter]  = useState('all');
-
-  // We stash the current userId from localStorage via token decode
-  const [userId, setUserId] = useState(null);
+  const [userId,  setUserId]  = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem('lendchain_token');
@@ -137,7 +191,22 @@ export default function LoanHistory() {
     setLoading(true);
     try {
       const res = await getMyLoans();
-      setLoans(res.data.loans || []);
+      // For each active loan that has an onChainId, fetch single loan to get enriched on-chain ratio
+      const rawLoans = res.data.loans || [];
+      const enriched = await Promise.all(
+        rawLoans.map(async (loan) => {
+          if (loan.status === 'active' && loan.onChainId !== null) {
+            try {
+              const detail = await getLoan(loan._id);
+              return detail.data.loan; // already has .onChain attached
+            } catch {
+              return loan;
+            }
+          }
+          return loan;
+        })
+      );
+      setLoans(enriched);
     } catch {
       toast.error('Failed to load your loans');
     } finally {
@@ -164,19 +233,17 @@ export default function LoanHistory() {
       const addr = wallet.account || await wallet.connect();
       if (!addr) return;
 
-      // Fetch live repayment amount from backend (which reads from chain)
       toast('Fetching exact repayment amount…', { icon: '🔗' });
       let totalOwedETH;
       try {
         const owedRes = await getLoanOwed(loan._id);
         totalOwedETH  = owedRes.data.totalOwedEth;
       } catch {
-        // Fallback: calculate with elapsed time (less accurate)
         const elapsedDays = loan.startDate
           ? (Date.now() - new Date(loan.startDate).getTime()) / 86400000
           : loan.durationDays;
         totalOwedETH = (loan.principal * (1 + (loan.interestRateBps / 10000 * elapsedDays / 365))).toFixed(8);
-        toast('Using estimated repayment amount (chain unavailable)', { icon: '⚠️' });
+        toast('Using estimated repayment (chain unavailable)', { icon: '⚠️' });
       }
 
       toast(`Confirm repayment of ${Number(totalOwedETH).toFixed(6)} ETH in MetaMask`, { icon: '⛓️', duration: 6000 });
@@ -194,12 +261,11 @@ export default function LoanHistory() {
 
   // ── Liquidate ──────────────────────────────────────────
   async function handleLiquidate(loan) {
-    // Use toast confirmation instead of window.confirm
     const confirmed = await new Promise((resolve) => {
       toast(
         (t) => (
           <span>
-            Liquidate this loan? Collateral goes to you.{' '}
+            Liquidate this loan? Collateral goes to lender.{' '}
             <button onClick={() => { toast.dismiss(t.id); resolve(true); }}
               style={{ marginLeft: 8, background: '#ba1a1a', color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 700 }}>
               Confirm
@@ -225,15 +291,61 @@ export default function LoanHistory() {
       toast('Updating records…', { icon: '💾' });
       await liquidateAPI(loan._id, { liquidateTxHash: txHash });
 
-      toast.success('Loan liquidated! Collateral sent to your wallet.');
+      toast.success('Loan liquidated! Collateral sent to lender.');
       fetchLoans();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message || 'Liquidation failed');
     }
   }
 
+  // ── Cancel ─────────────────────────────────────────────
+  async function handleCancel(loan) {
+    const confirmed = await new Promise((resolve) => {
+      toast(
+        (t) => (
+          <span>
+            Cancel loan and recover your collateral?{' '}
+            <button onClick={() => { toast.dismiss(t.id); resolve(true); }}
+              style={{ marginLeft: 8, background: '#6B4EFF', color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 700 }}>
+              Confirm
+            </button>
+            <button onClick={() => { toast.dismiss(t.id); resolve(false); }}
+              style={{ marginLeft: 4, background: '#E5E7EB', color: '#374151', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
+              Keep
+            </button>
+          </span>
+        ),
+        { duration: 10000 }
+      );
+    });
+    if (!confirmed) return;
+
+    try {
+      const addr = wallet.account || await wallet.connect();
+      if (!addr) return;
+
+      // Cancel on-chain first (recovers collateral)
+      if (loan.onChainId !== null) {
+        toast('Cancelling on-chain via MetaMask…', { icon: '⛓️', duration: 6000 });
+        const { txHash } = await wallet.callCancelLoan(loan.onChainId);
+        toast('Updating records…', { icon: '💾' });
+        // Record in backend (sets status = 'cancelled')
+        await cancelAPI(loan._id);
+        toast.success('Loan cancelled! Collateral returned to your wallet.');
+      } else {
+        // No on-chain ID (loan was never mined, only in DB)
+        await cancelAPI(loan._id);
+        toast.success('Loan request cancelled.');
+      }
+      fetchLoans();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message || 'Cancel failed');
+    }
+  }
+
   return (
-    <div className="page-dashboard" style={{ background: '#f5e8e5' }}>
+    <div className="page-dashboard" style={{ background: '#F5F3FF' }}>
+      {/* Topbar */}
       <div style={{
         position: 'fixed', top: 0, left: 0, right: 0, height: 64,
         background: 'white', boxShadow: '0 2px 16px rgba(45,27,105,0.08)',
@@ -287,6 +399,7 @@ export default function LoanHistory() {
               loan={loan}
               onRepay={handleRepay}
               onLiquidate={handleLiquidate}
+              onCancel={handleCancel}
               currentUserId={userId}
             />
           ))

@@ -4,8 +4,9 @@ const cors      = require('cors');
 const mongoose  = require('mongoose');
 const rateLimit = require('express-rate-limit');
 
-const authRoutes = require('./routes/auth');
-const loanRoutes = require('./routes/loans');
+const authRoutes     = require('./routes/auth');
+const loanRoutes     = require('./routes/loans');
+const { startMonitoring } = require('./services/monitoringService');
 
 // ── Startup env validation ─────────────────────────────────
 const REQUIRED_ENV = ['MONGODB_URI', 'JWT_SECRET'];
@@ -52,6 +53,34 @@ app.use('/api/auth', authLimiter);
 app.use('/api/auth',  authRoutes);
 app.use('/api/loans', loanRoutes);
 
+// ── ETH/USD price (CoinGecko, no API key needed) ──────────
+let _ethPriceCache = { usd: null, ts: 0 };
+app.get('/api/eth-price', async (req, res) => {
+  try {
+    const now = Date.now();
+    // Cache for 60 seconds to avoid hammering CoinGecko
+    if (_ethPriceCache.usd && now - _ethPriceCache.ts < 60_000) {
+      return res.json({ success: true, usd: _ethPriceCache.usd, cached: true });
+    }
+    const response = await fetch(
+      'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd'
+    );
+    if (!response.ok) throw new Error('CoinGecko error ' + response.status);
+    const data = await response.json();
+    const usd  = data?.ethereum?.usd;
+    if (!usd) throw new Error('Unexpected CoinGecko response');
+    _ethPriceCache = { usd, ts: now };
+    res.json({ success: true, usd });
+  } catch (err) {
+    console.error('[eth-price]', err.message);
+    // Return cached value if available, even if stale
+    if (_ethPriceCache.usd) {
+      return res.json({ success: true, usd: _ethPriceCache.usd, cached: true, stale: true });
+    }
+    res.status(503).json({ success: false, message: 'Could not fetch ETH price' });
+  }
+});
+
 // ── Health check ───────────────────────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({
@@ -83,6 +112,9 @@ mongoose
     const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
     });
+
+    // Start collateral price monitoring (hourly cron)
+    startMonitoring();
 
     // Graceful shutdown
     process.on('SIGTERM', () => {

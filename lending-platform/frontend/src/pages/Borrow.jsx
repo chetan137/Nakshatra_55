@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wallet, DollarSign, Clock, Percent, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { ArrowLeft, Wallet, DollarSign, Clock, Percent, AlertTriangle, CheckCircle, Info, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useWallet } from '../hooks/useWallet';
 import { createLoan } from '../api/loanApi';
 import { useAuth } from '../context/AuthContext';
+
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
 
 export default function Borrow() {
   const navigate   = useNavigate();
@@ -18,35 +20,59 @@ export default function Borrow() {
     }
   }, [user, navigate]);
 
+  const [ethPrice,    setEthPrice]    = useState(null);
+  const [priceLoading, setPriceLoading] = useState(true);
+  const priceRef = useRef(null);
+
   const [form, setForm] = useState({
-    principal:       '',
-    collateral:      '',
+    principalUsd:    '',
     durationDays:    '30',
     interestRateBps: '1200',
   });
   const [loading, setLoading] = useState(false);
   const [step, setStep]       = useState('form'); // form | chain | backend | done
 
-  const interestPercent = (Number(form.interestRateBps) / 100).toFixed(1);
-  const collateralRatio = form.principal && form.collateral
-    ? ((Number(form.collateral) / Number(form.principal)) * 100).toFixed(0)
+  // Fetch ETH/USD price
+  async function fetchEthPrice() {
+    setPriceLoading(true);
+    try {
+      const res  = await fetch(`${API_BASE}/api/eth-price`);
+      const data = await res.json();
+      if (data.success) {
+        setEthPrice(data.usd);
+        priceRef.current = data.usd;
+      }
+    } catch {
+      toast.error('Could not fetch ETH price');
+    } finally {
+      setPriceLoading(false);
+    }
+  }
+
+  useEffect(() => { fetchEthPrice(); }, []);
+
+  // Derived values
+  const principalUsd   = Number(form.principalUsd) || 0;
+  const principalEth   = ethPrice && principalUsd ? (principalUsd / ethPrice) : null;
+  // Collateral must be worth 150% of principal in USD → 1.5× the ETH amount
+  const collateralEth  = principalEth ? principalEth * 1.5 : null;
+  const collateralUsd  = collateralEth && ethPrice ? collateralEth * ethPrice : null;
+
+  const interestPercent      = (Number(form.interestRateBps) / 100).toFixed(1);
+  const estimatedInterestEth = principalEth && form.durationDays
+    ? principalEth * (Number(form.interestRateBps) / 10000) * (Number(form.durationDays) / 365)
     : null;
-  const ratioSafe = collateralRatio ? Number(collateralRatio) >= 150 : null;
-  const estimatedInterest = form.principal && form.durationDays
-    ? (Number(form.principal) * (Number(form.interestRateBps) / 10000) * (Number(form.durationDays) / 365)).toFixed(6)
+  const totalRepayEth = estimatedInterestEth !== null
+    ? principalEth + estimatedInterestEth
     : null;
-  const totalRepay = estimatedInterest
-    ? (Number(form.principal) + Number(estimatedInterest)).toFixed(6)
-    : null;
+  const totalRepayUsd = totalRepayEth && ethPrice ? totalRepayEth * ethPrice : null;
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.principal || !form.collateral || !form.durationDays) {
-      return toast.error('Fill in all fields');
+    if (!form.principalUsd || !ethPrice) {
+      return toast.error('Enter the loan amount and wait for ETH price to load');
     }
-    if (!ratioSafe) {
-      return toast.error('Collateral must be ≥ 150% of principal');
-    }
+    if (principalUsd <= 0) return toast.error('Loan amount must be greater than 0');
 
     setLoading(true);
     try {
@@ -55,12 +81,15 @@ export default function Borrow() {
       const addr = wallet.account || await wallet.connect();
       if (!addr) { setLoading(false); return; }
 
+      const pEth = principalEth.toFixed(8);
+      const cEth = collateralEth.toFixed(8);
+
       // Step 2: Send tx to blockchain
       setStep('chain');
       toast('Step 2/3 — Sending to blockchain (MetaMask will open)…', { icon: '⛓️' });
       const { onChainId, txHash } = await wallet.callCreateLoan(
-        form.principal,
-        form.collateral,
+        pEth,
+        cEth,
         form.durationDays,
         form.interestRateBps
       );
@@ -72,8 +101,8 @@ export default function Borrow() {
         onChainId,
         createTxHash:    txHash,
         borrowerAddress: addr,
-        principal:       Number(form.principal),
-        collateral:      Number(form.collateral),
+        principal:       Number(pEth),
+        collateral:      Number(cEth),
         interestRateBps: Number(form.interestRateBps),
         durationDays:    Number(form.durationDays),
       });
@@ -104,8 +133,35 @@ export default function Borrow() {
           </button>
           <div>
             <h1 className="auth-title" style={{ textAlign: 'left', marginBottom: 2 }}>Request a Loan</h1>
-            <p className="auth-subtitle" style={{ textAlign: 'left' }}>Deposit collateral → get ETH instantly</p>
+            <p className="auth-subtitle" style={{ textAlign: 'left' }}>Enter USD amount — collateral auto-calculated at 150%</p>
           </div>
+        </div>
+
+        {/* ETH price banner */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)',
+          borderRadius: 12, padding: '10px 14px', marginBottom: 16,
+        }}>
+          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
+            ETH/USD rate:
+          </span>
+          {priceLoading ? (
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Loading…</span>
+          ) : ethPrice ? (
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#FF8C69' }}>
+              1 ETH = ${ethPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          ) : (
+            <span style={{ fontSize: 13, color: '#ba1a1a' }}>Unavailable</span>
+          )}
+          <button
+            onClick={fetchEthPrice}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', padding: 4 }}
+            title="Refresh price"
+          >
+            <RefreshCw size={14} />
+          </button>
         </div>
 
         {/* Wallet pill */}
@@ -133,37 +189,44 @@ export default function Borrow() {
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
-          {/* Principal */}
-          <div className="form-group">
-            <label><DollarSign size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Loan Amount (ETH)</label>
-            <input
-              type="number" step="0.001" min="0.001" placeholder="e.g. 0.5"
-              value={form.principal}
-              onChange={e => setForm(f => ({ ...f, principal: e.target.value }))}
-              disabled={loading}
-            />
-          </div>
-
-          {/* Collateral */}
+          {/* Principal in USD */}
           <div className="form-group">
             <label>
-              <AlertTriangle size={14} style={{ marginRight: 6, verticalAlign: 'middle', color: ratioSafe === false ? '#ba1a1a' : ratioSafe === true ? '#00373f' : undefined }} />
-              Collateral (ETH) — minimum 150% of loan
+              <DollarSign size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+              Loan Amount (USD)
             </label>
             <input
-              type="number" step="0.001" min="0" placeholder="e.g. 0.8"
-              value={form.collateral}
-              onChange={e => setForm(f => ({ ...f, collateral: e.target.value }))}
+              type="number" step="1" min="1" placeholder="e.g. 500"
+              value={form.principalUsd}
+              onChange={e => setForm(f => ({ ...f, principalUsd: e.target.value }))}
               disabled={loading}
-              style={{ borderColor: ratioSafe === false ? '#ba1a1a' : ratioSafe === true ? '#00373f' : undefined }}
             />
-            {collateralRatio && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600,
-                color: ratioSafe ? '#00373f' : '#ba1a1a',
-              }}>
-                {ratioSafe ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
-                Collateral ratio: {collateralRatio}% {ratioSafe ? '✓ Safe' : '✗ Too low'}
+            {principalEth !== null && (
+              <span style={{ fontSize: 12, color: '#8a7e80', marginTop: 4, display: 'block' }}>
+                ≈ {principalEth.toFixed(6)} ETH at current rate
+              </span>
+            )}
+          </div>
+
+          {/* Collateral — auto-calculated, read-only */}
+          <div className="form-group">
+            <label>
+              <AlertTriangle size={14} style={{ marginRight: 6, verticalAlign: 'middle', color: '#00373f' }} />
+              Required Collateral (auto — 150% of loan)
+            </label>
+            <input
+              type="text"
+              readOnly
+              value={
+                collateralEth !== null
+                  ? `${collateralEth.toFixed(6)} ETH  ≈  $${collateralUsd.toFixed(2)}`
+                  : '—'
+              }
+              style={{ background: 'rgba(0,55,63,0.06)', cursor: 'default', color: '#00373f', fontWeight: 600 }}
+            />
+            {collateralEth !== null && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#00373f', marginTop: 4 }}>
+                <CheckCircle size={14} /> Collateral ratio: 150% — Safe
               </div>
             )}
           </div>
@@ -198,7 +261,7 @@ export default function Borrow() {
           </div>
 
           {/* Summary box */}
-          {totalRepay && (
+          {totalRepayEth !== null && (
             <div style={{
               background: 'linear-gradient(135deg, #fef2f0, #f5e8e5)',
               border: '1px solid rgba(96,24,11,0.2)',
@@ -208,11 +271,19 @@ export default function Borrow() {
                 <Info size={14} /> Loan Summary
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 13 }}>
-                <span style={{ color: '#8a7e80' }}>You receive:</span>       <span style={{ fontWeight: 700 }}>{form.principal} ETH</span>
-                <span style={{ color: '#8a7e80' }}>Collateral locked:</span> <span style={{ fontWeight: 700 }}>{form.collateral} ETH</span>
+                <span style={{ color: '#8a7e80' }}>You receive:</span>
+                <span style={{ fontWeight: 700 }}>${principalUsd.toFixed(2)} ({principalEth.toFixed(6)} ETH)</span>
+
+                <span style={{ color: '#8a7e80' }}>Collateral locked:</span>
+                <span style={{ fontWeight: 700 }}>${collateralUsd.toFixed(2)} ({collateralEth.toFixed(6)} ETH)</span>
+
                 <span style={{ color: '#8a7e80' }}>Interest ({interestPercent}% for {form.durationDays}d):</span>
-                <span style={{ fontWeight: 700 }}>~{estimatedInterest} ETH</span>
-                <span style={{ color: '#8a7e80' }}>Total to repay:</span>    <span style={{ fontWeight: 700, color: '#60180b' }}>{totalRepay} ETH</span>
+                <span style={{ fontWeight: 700 }}>~{estimatedInterestEth.toFixed(6)} ETH</span>
+
+                <span style={{ color: '#8a7e80' }}>Total to repay:</span>
+                <span style={{ fontWeight: 700, color: '#60180b' }}>
+                  ~${totalRepayUsd.toFixed(2)} ({totalRepayEth.toFixed(6)} ETH)
+                </span>
               </div>
             </div>
           )}
@@ -232,7 +303,11 @@ export default function Borrow() {
             </div>
           )}
 
-          <button type="submit" className="btn btn-primary auth-submit" disabled={loading || !ratioSafe}>
+          <button
+            type="submit"
+            className="btn btn-primary auth-submit"
+            disabled={loading || !principalEth || priceLoading}
+          >
             {loading
               ? <><div className="spinner spinner-sm" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} /> Processing…</>
               : <><Wallet size={18} /> Request Loan via MetaMask</>
