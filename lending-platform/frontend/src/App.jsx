@@ -2,13 +2,17 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+
 import Landing from './pages/Landing';
-import Register from './pages/Register';
-import VerifyEmail from './pages/VerifyEmail';
-import Login from './pages/Login';
+import Register     from './pages/Register';
+import VerifyEmail  from './pages/VerifyEmail';
+import Login        from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import Dashboard from './pages/Dashboard';
+import ResetPassword  from './pages/ResetPassword';
+import Dashboard    from './pages/Dashboard';
+import Borrow       from './pages/Borrow';
+import Lend         from './pages/Lend';
+import LoanHistory  from './pages/LoanHistory';
 
 function App() {
   return (
@@ -23,9 +27,12 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          {/* Protected dashboard */}
+          {/* Protected routes */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          {/* Catch-all → landing */}
+          <Route path="/borrow"    element={<ProtectedRoute><Borrow /></ProtectedRoute>} />
+          <Route path="/lend"      element={<ProtectedRoute><Lend /></ProtectedRoute>} />
+          <Route path="/history"   element={<ProtectedRoute><LoanHistory /></ProtectedRoute>} />
+          {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

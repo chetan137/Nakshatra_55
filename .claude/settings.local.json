@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(netstat -ano)",
+      "Bash(findstr \"5000\\\\|5001\\\\|8545\")",
+      "Bash(npm run:*)",
+      "Bash(npm install:*)",
+      "Bash(rm:*)"
+    ]
+  }
+}

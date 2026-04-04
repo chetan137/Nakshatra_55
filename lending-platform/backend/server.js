@@ -4,6 +4,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 
 const authRoutes = require('./routes/auth');
+const loanRoutes = require('./routes/loans');
 
 const app = express();
 
@@ -15,7 +16,8 @@ app.use(cors({
 app.use(express.json());
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth',  authRoutes);
+app.use('/api/loans', loanRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
