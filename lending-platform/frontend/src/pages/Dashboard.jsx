@@ -92,17 +92,17 @@ export default function Dashboard() {
         <header className="dash-topbar">
           <div>
             <h1 className="section-heading" style={{ color: 'var(--text-card-primary)', fontSize: 26 }}>
-              Welcome back, <span style={{ color: 'var(--accent-bright)' }}>{user.name}</span>!
+              Welcome back, <span style={{ color: 'var(--accent-bright)' }}>{user.walletAddress?.slice(0, 6)}…{user.walletAddress?.slice(-4)}</span>!
             </h1>
             <p style={{ color: '#8a7e80', fontSize: 14, marginTop: 4 }}>
               {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
           </div>
           <div className="dash-user-pill">
-            <div className="dash-avatar">{user.name?.charAt(0).toUpperCase()}</div>
+            <div className="dash-avatar">{user.role?.charAt(0).toUpperCase() || '?'}</div>
             <div>
-              <span className="text-small" style={{ fontWeight: 600, display: 'block' }}>{user.name}</span>
-              <span style={{ fontSize: 11, color: '#8a7e80', textTransform: 'capitalize' }}>{user.role}</span>
+              <span className="text-small" style={{ fontWeight: 600, display: 'block', textTransform: 'capitalize' }}>{user.role || 'No role'}</span>
+              <span style={{ fontSize: 11, color: '#8a7e80' }}>{user.walletAddress?.slice(0, 8)}…</span>
             </div>
           </div>
         </header>
@@ -272,10 +272,10 @@ export default function Dashboard() {
           <div className="card">
             <h3 className="card-heading" style={{ marginBottom: 20 }}>Profile</h3>
             <div className="dash-info-row">
-              <Mail size={18} color="var(--accent-bright)" />
+              <Wallet size={18} color="var(--accent-bright)" />
               <div>
-                <span className="text-tiny" style={{ color: 'var(--text-card-muted)' }}>Email</span>
-                <p className="text-body">{user.email}</p>
+                <span className="text-tiny" style={{ color: 'var(--text-card-muted)' }}>Wallet Address</span>
+                <p className="text-body" style={{ wordBreak: 'break-all', fontSize: 13 }}>{user.walletAddress}</p>
               </div>
             </div>
             <div className="dash-info-row">
@@ -286,12 +286,10 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="dash-info-row">
-              <CheckCircle size={18} color={user.isEmailVerified ? '#00373f' : '#c4803a'} />
+              <CheckCircle size={18} color="#00373f" />
               <div>
-                <span className="text-tiny" style={{ color: 'var(--text-card-muted)' }}>Email Status</span>
-                <p className="text-body" style={{ color: user.isEmailVerified ? '#00373f' : '#815249' }}>
-                  {user.isEmailVerified ? 'Verified ✓' : 'Not verified'}
-                </p>
+                <span className="text-tiny" style={{ color: 'var(--text-card-muted)' }}>Auth Method</span>
+                <p className="text-body" style={{ color: '#00373f' }}>MetaMask ✓</p>
               </div>
             </div>
           </div>

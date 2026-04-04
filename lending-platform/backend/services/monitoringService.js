@@ -157,8 +157,8 @@ async function triggerOnChainLiquidation(loan) {
 // ── Load borrower + lender user objects ───────────────────────
 async function loadParties(loan) {
   const [borrower, lender] = await Promise.all([
-    loan.borrower ? User.findById(loan.borrower).select('name email').lean() : null,
-    loan.lender   ? User.findById(loan.lender).select('name email').lean()   : null,
+    loan.borrower ? User.findById(loan.borrower).select('walletAddress role').lean() : null,
+    loan.lender   ? User.findById(loan.lender).select('walletAddress role').lean()   : null,
   ]);
   return { borrower, lender };
 }

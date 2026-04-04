@@ -4,8 +4,8 @@ import { getMe, getToken, saveToken, removeToken } from '../api/authApi';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(getToken());
+  const [user,    setUser]    = useState(null);
+  const [token,   setToken]   = useState(getToken());
   const [loading, setLoading] = useState(true);
 
   const isAuthenticated = !!user && !!token;
@@ -14,10 +14,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     async function restoreSession() {
       const stored = getToken();
-      if (!stored) {
-        setLoading(false);
-        return;
-      }
+      if (!stored) { setLoading(false); return; }
       try {
         const res = await getMe();
         setUser(res.data.user);
@@ -33,6 +30,7 @@ export function AuthProvider({ children }) {
     restoreSession();
   }, []);
 
+  /** Call after successful verify or select-role */
   function loginUser(newToken, userData) {
     saveToken(newToken);
     setToken(newToken);
@@ -50,7 +48,9 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated, loading, login: loginUser, logout, updateUser }}>
+    <AuthContext.Provider
+      value={{ user, token, isAuthenticated, loading, login: loginUser, logout, updateUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

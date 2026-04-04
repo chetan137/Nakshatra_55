@@ -1,95 +1,55 @@
 const mongoose = require('mongoose');
+const crypto   = require('crypto');
 
 const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Name is required'],
-    trim: true,
-    minlength: [2, 'Name must be at least 2 characters'],
-  },
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-    unique: true,
-    lowercase: true,
-    trim: true,
-  },
-  password: {
-    type: String,
-    required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters'],
-  },
   walletAddress: {
-    type: String,
-    default: null,
+    type:      String,
+    required:  [true, 'Wallet address is required'],
+    unique:    true,
+    lowercase: true,
+    trim:      true,
+    match:     [/^0x[0-9a-f]{40}$/, 'Invalid Ethereum address'],
   },
-  isEmailVerified: {
-    type: Boolean,
-    default: false,
-  },
-  emailOTP: {
-    type: String,
-    default: null,
-  },
-  emailOTPExpiry: {
-    type: Date,
-    default: null,
-  },
-  passwordResetOTP: {
-    type: String,
-    default: null,
-  },
-  passwordResetOTPExpiry: {
-    type: Date,
-    default: null,
+  nonce: {
+    type:    String,
+    default: () => crypto.randomBytes(16).toString('hex'),
   },
   role: {
-    type: String,
-    enum: ['borrower', 'lender', 'admin'],
-    required: [true, 'Role is required'],
-  },
-  avatar: {
-    type: String,
-    default: null,
+    type:    String,
+    enum:    ['borrower', 'lender'],
+    default: null,  // null until user explicitly picks
   },
   createdAt: {
-    type: Date,
+    type:    Date,
     default: Date.now,
   },
   lastLogin: {
-    type: Date,
+    type:    Date,
     default: null,
-  },
-  lastOTPSentAt: {
-    type: Date,
-    default: null,
-  },
-  walletNonce: {
-    type: String,
-  },
-  walletNonceExpiry: {
-    type: Date,
-  },
-  pendingWallet: {
-    type: String,
   },
 
   // ── ZK Anonymous Verification ─────────────────────────────
   // True once user completes Reclaim/zkPass proof flow.
   // PII never stored here — see ZkProof model for encrypted backup.
   zkVerified: {
-    type: Boolean,
+    type:    Boolean,
     default: false,
   },
   zkVerifiedAt: {
-    type: Date,
+    type:    Date,
     default: null,
   },
   // The on-chain proof hash — publicly verifiable, no PII
   zkProofHash: {
-    type: String,
+    type:    String,
     default: null,
   },
 });
+
+// Regenerate nonce after every login (replay-attack protection)
+userSchema.methods.refreshNonce = function () {
+  this.nonce = crypto.randomBytes(16).toString('hex');
+  return this.save();
+};
 
 module.exports = mongoose.model('User', userSchema);
