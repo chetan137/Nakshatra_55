@@ -181,15 +181,67 @@ export default function Register() {
           </div>
         </div>
 
-        {/* Right — Video */}
+        {/* Right — Video Panel */}
         <div className="auth-split-right">
           <video autoPlay loop muted playsInline className="auth-split-video">
             <source src="/v1.mp4" type="video/mp4" />
           </video>
           <div className="auth-split-video-overlay">
-            <img src="/logo.png" alt="Go Secure" style={{ width: 64, height: 64, borderRadius: 14, objectFit: 'contain', marginBottom: '16px' }} />
-            <h2>Go Secure</h2>
-            <p>Your gateway to decentralized lending</p>
+            {/* Brand */}
+            <div className="auth-split-brand">
+              <img src="/logo.png" alt="Go Secure" />
+              <div className="auth-split-brand-text">
+                <h3>Go Secure</h3>
+                <span>DeFi Lending Platform</span>
+              </div>
+            </div>
+
+            {/* Hero */}
+            <div className="auth-split-hero">
+              <h2>Start your<br /><em>DeFi journey</em> today.</h2>
+              <p>
+                Join 180,000+ users who borrow and lend on-chain with full transparency, zero banks, zero paperwork.
+              </p>
+
+              {/* Stats */}
+              <div className="auth-split-stats">
+                <div className="auth-stat-badge">
+                  <strong>$890M+</strong>
+                  <span>Loans Issued</span>
+                </div>
+                <div className="auth-stat-badge">
+                  <strong>120+</strong>
+                  <span>Countries</span>
+                </div>
+                <div className="auth-stat-badge">
+                  <strong>0</strong>
+                  <span>Middlemen</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Features */}
+            <div className="auth-split-features">
+              {[
+                { dot: '#f5d5c8', text: 'Choose Borrower or Lender role' },
+                { dot: '#b3e0d8', text: 'Earn up to 15% APY as a lender' },
+                { dot: '#c4803a', text: 'Collateral always protected on-chain' },
+              ].map(f => (
+                <div key={f.text} className="auth-split-feature">
+                  <span className="auth-split-feature-dot" style={{ background: f.dot }} />
+                  {f.text}
+                </div>
+              ))}
+            </div>
+
+            {/* Trust bar */}
+            <div className="auth-split-trust">
+              <div className="auth-split-trust-icon">⛓️</div>
+              <p>
+                <strong>On-Chain Collateral</strong>
+                Smart contracts hold collateral— not us
+              </p>
+            </div>
           </div>
         </div>
       </div>

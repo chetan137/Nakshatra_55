@@ -81,15 +81,67 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Right — Video */}
+        {/* Right — Video Panel */}
         <div className="auth-split-right">
           <video autoPlay loop muted playsInline className="auth-split-video">
             <source src="/v1.mp4" type="video/mp4" />
           </video>
           <div className="auth-split-video-overlay">
-            <img src="/logo.png" alt="Go Secure" style={{ width: 64, height: 64, borderRadius: 14, objectFit: 'contain', marginBottom: '16px' }} />
-            <h2>Go Secure</h2>
-            <p>Your gateway to decentralized lending</p>
+            {/* Brand */}
+            <div className="auth-split-brand">
+              <img src="/logo.png" alt="Go Secure" />
+              <div className="auth-split-brand-text">
+                <h3>Go Secure</h3>
+                <span>DeFi Lending Platform</span>
+              </div>
+            </div>
+
+            {/* Hero */}
+            <div className="auth-split-hero">
+              <h2>Welcome back<br />to <em>DeFi done right.</em></h2>
+              <p>
+                Borrow against crypto collateral or earn competitive yields— all secured by smart contracts, no middlemen.
+              </p>
+
+              {/* Stats */}
+              <div className="auth-split-stats">
+                <div className="auth-stat-badge">
+                  <strong>$2.4B+</strong>
+                  <span>Total Value Locked</span>
+                </div>
+                <div className="auth-stat-badge">
+                  <strong>180K+</strong>
+                  <span>Active Users</span>
+                </div>
+                <div className="auth-stat-badge">
+                  <strong>12% APY</strong>
+                  <span>Avg. Lender Return</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Features */}
+            <div className="auth-split-features">
+              {[
+                { dot: '#f5d5c8', text: 'Non-custodial — you hold your keys' },
+                { dot: '#b3e0d8', text: 'Smart contract collateral, always' },
+                { dot: '#c4803a', text: 'Get funded in minutes, not days' },
+              ].map(f => (
+                <div key={f.text} className="auth-split-feature">
+                  <span className="auth-split-feature-dot" style={{ background: f.dot }} />
+                  {f.text}
+                </div>
+              ))}
+            </div>
+
+            {/* Trust bar */}
+            <div className="auth-split-trust">
+              <div className="auth-split-trust-icon">🔒</div>
+              <p>
+                <strong>Bank-grade Security</strong>
+                Audited smart contracts, no custodial risk
+              </p>
+            </div>
           </div>
         </div>
       </div>

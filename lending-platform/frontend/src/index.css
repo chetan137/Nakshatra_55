@@ -914,12 +914,36 @@ label {
 }
 
 .auth-split-right {
-  flex: 1;
+  flex: 1.1;
   position: relative;
   overflow: hidden;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
+  min-height: 100%;
+}
+
+/* Dark cinematic gradient on top of video */
+.auth-split-right::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg,
+      rgba(96,24,11,0.72) 0%,
+      rgba(0,55,63,0.55) 55%,
+      rgba(52,47,48,0.90) 100%);
+  z-index: 1;
+}
+
+/* Subtle vignette on left edge for seamless blending */
+.auth-split-right::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(52,47,48,0.4) 0%, transparent 30%);
+  z-index: 2;
+  pointer-events: none;
 }
 
 .auth-split-video {
@@ -928,31 +952,183 @@ label {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
+  filter: saturate(1.15) contrast(1.05);
 }
 
 .auth-split-video-overlay {
   position: relative;
-  z-index: 2;
-  text-align: center;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  height: 100%;
+  padding: 48px 44px;
   color: white;
-  padding: 40px;
-  background: rgba(52, 47, 48, 0.55);
-  backdrop-filter: blur(6px);
-  border-radius: 28px;
-  border: 1px solid rgba(255, 248, 247, 0.15);
 }
 
-.auth-split-video-overlay h2 {
-  font-size: 32px;
+/* Top brand area */
+.auth-split-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.auth-split-brand img {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  object-fit: contain;
+  border: 2px solid rgba(255,248,247,0.25);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.auth-split-brand-text h3 {
+  font-size: 20px;
   font-weight: 800;
-  color: white;
-  margin: 0 0 8px;
+  color: #fff;
+  margin: 0;
+  letter-spacing: -0.5px;
 }
 
-.auth-split-video-overlay p {
-  font-size: 16px;
-  color: rgba(255, 248, 247, 0.75);
+.auth-split-brand-text span {
+  font-size: 12px;
+  color: rgba(255,248,247,0.65);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+}
+
+/* Center hero text */
+.auth-split-hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.auth-split-hero h2 {
+  font-size: 38px;
+  font-weight: 900;
+  line-height: 1.15;
+  color: #fff;
+  margin: 0 0 16px;
+  text-shadow: 0 2px 20px rgba(0,0,0,0.4);
+  letter-spacing: -1px;
+}
+
+.auth-split-hero h2 em {
+  font-style: normal;
+  color: #f5d5c8;
+}
+
+.auth-split-hero p {
+  font-size: 15px;
+  color: rgba(255,248,247,0.75);
+  line-height: 1.65;
+  max-width: 340px;
+  margin: 0 0 28px;
+}
+
+/* Floating stat badges */
+.auth-split-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.auth-stat-badge {
+  background: rgba(255,248,247,0.12);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,248,247,0.2);
+  border-radius: 14px;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: background 0.2s;
+}
+
+.auth-stat-badge:hover {
+  background: rgba(255,248,247,0.2);
+}
+
+.auth-stat-badge strong {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+}
+
+.auth-stat-badge span {
+  font-size: 11px;
+  color: rgba(255,248,247,0.65);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Feature bullet list */
+.auth-split-features {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 0;
+}
+
+.auth-split-feature {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: rgba(255,248,247,0.85);
+  font-weight: 500;
+}
+
+.auth-split-feature-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Bottom trust bar */
+.auth-split-trust {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: rgba(0,0,0,0.28);
+  border-radius: 14px;
+  border: 1px solid rgba(255,248,247,0.12);
+  backdrop-filter: blur(10px);
+}
+
+.auth-split-trust-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(0,55,63,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.auth-split-trust p {
   margin: 0;
+  font-size: 13px;
+  color: rgba(255,248,247,0.75);
+  line-height: 1.4;
+}
+
+.auth-split-trust p strong {
+  color: #fff;
+  display: block;
+  font-size: 14px;
 }
 
 /* Responsive */
