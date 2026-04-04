@@ -10,11 +10,13 @@ import VerifyEmail  from './pages/VerifyEmail';
 import Login        from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword  from './pages/ResetPassword';
-import Dashboard       from './pages/Dashboard';
-import Borrow          from './pages/Borrow';
-import Lend            from './pages/Lend';
-import LoanHistory     from './pages/LoanHistory';
-import ZkVerification  from './pages/ZkVerification';
+import Dashboard          from './pages/Dashboard';
+import Borrow             from './pages/Borrow';
+import Lend               from './pages/Lend';
+import LoanHistory        from './pages/LoanHistory';
+import ZkVerification     from './pages/ZkVerification';
+import GuarantorRequest   from './pages/GuarantorRequest';
+import GuarantorInbox     from './pages/GuarantorInbox';
 
 function App() {
   return (
@@ -34,7 +36,9 @@ function App() {
           <Route path="/borrow"    element={<ProtectedRoute><Borrow /></ProtectedRoute>} />
           <Route path="/lend"      element={<ProtectedRoute><Lend /></ProtectedRoute>} />
           <Route path="/history"   element={<ProtectedRoute><LoanHistory /></ProtectedRoute>} />
-          <Route path="/zk-verify" element={<ProtectedRoute><ZkVerification /></ProtectedRoute>} />
+          <Route path="/zk-verify"          element={<ProtectedRoute><ZkVerification /></ProtectedRoute>} />
+          <Route path="/guarantor-request"  element={<ProtectedRoute><GuarantorRequest /></ProtectedRoute>} />
+          <Route path="/guarantor-inbox"    element={<ProtectedRoute><GuarantorInbox /></ProtectedRoute>} />
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

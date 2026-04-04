@@ -42,3 +42,36 @@ export const liquidateLoan = (id, data)     => API.put(`/loans/${id}/liquidate`,
 
 // DELETE (cancel before funded)
 export const cancelLoan   = (id)   => API.delete(`/loans/${id}`);
+
+// ── Guarantor API ──────────────────────────────────────────
+// Search LendChain user by MetaMask wallet address
+export const searchGuarantorByWallet = (walletAddress) =>
+  API.post('/guarantor/search', { walletAddress });
+
+// Borrower requests a guarantor for a pending loan
+export const requestGuarantor = (data) =>
+  API.post('/guarantor/request', data);
+
+// Guarantor's inbox — all requests for their wallet
+export const getGuarantorInbox = () =>
+  API.get('/guarantor/inbox');
+
+// Borrower's sent guarantor requests
+export const getMyGuarantorRequests = () =>
+  API.get('/guarantor/my-requests');
+
+// Get guarantor status for a specific loan
+export const getGuarantorForLoan = (loanId) =>
+  API.get(`/guarantor/loan/${loanId}`);
+
+// Guarantor approves request
+export const approveGuarantorRequest = (id, data) =>
+  API.put(`/guarantor/${id}/approve`, data);
+
+// Guarantor rejects request
+export const rejectGuarantorRequest = (id, data) =>
+  API.put(`/guarantor/${id}/reject`, data);
+
+// Borrower cancels pending request
+export const cancelGuarantorRequest = (id) =>
+  API.delete(`/guarantor/${id}/cancel`);

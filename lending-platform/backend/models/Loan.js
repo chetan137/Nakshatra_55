@@ -32,8 +32,8 @@ const loanSchema = new mongoose.Schema({
     required: true,
   },
   collateral: {
-    type: Number,   // ETH amount locked
-    required: true,
+    type: Number,   // ETH amount locked; 0 for guarantor-backed loans
+    default: 0,
   },
   interestRateBps: {
     type: Number,   // e.g. 1200 = 12%
@@ -42,6 +42,15 @@ const loanSchema = new mongoose.Schema({
   durationDays: {
     type: Number,
     required: true,
+  },
+
+  // ── Loan type ──────────────────────────────────────────
+  // 'collateral' — traditional ETH-collateralized loan (on-chain)
+  // 'guarantor'  — non-collateral, guaranteed by another LendChain user
+  loanType: {
+    type: String,
+    enum: ['collateral', 'guarantor'],
+    default: 'guarantor',
   },
 
   // ── Status ─────────────────────────────────────────
@@ -65,6 +74,21 @@ const loanSchema = new mongoose.Schema({
   // ── Risk ───────────────────────────────────────────
   riskScore: { type: Number, default: 80 },
 
+  // ── Guarantor (non-collateral guarantee) ──────────
+  // Set when borrower requests a guarantor before loan is funded.
+  // Lenders can see guarantor status on loan cards.
+  guarantorRequest: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Guarantor',
+    default: null,
+  },
+  guarantorAddress: { type: String, default: null },   // guarantor wallet address
+  guarantorStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', null],
+    default: null,
+  },
+
   createdAt: { type: Date, default: Date.now },
 });
 
@@ -77,6 +101,7 @@ loanSchema.index({ riskScore: -1, createdAt: -1 });      // sorted marketplace
 
 // ── Computed helpers ────────────────────────────────
 loanSchema.virtual('collateralRatio').get(function () {
+  if (this.loanType === 'guarantor' || !this.collateral || this.collateral === 0) return 'N/A';
   return this.principal > 0
     ? ((this.collateral / this.principal) * 100).toFixed(1)
     : '0';

@@ -1,18 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wallet, DollarSign, Clock, Percent, AlertTriangle, CheckCircle, Info, RefreshCw, Shield, ShieldCheck } from 'lucide-react';
+import {
+  ArrowLeft, Wallet, DollarSign, Clock, Percent, Info,
+  RefreshCw, Shield, ShieldCheck, UserCheck, AlertTriangle,
+  CheckCircle, ChevronRight,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useWallet } from '../hooks/useWallet';
 import { useZkProof } from '../hooks/useZkProof';
-import { createLoan } from '../api/loanApi';
+import { createLoan, getMyGuarantorRequests } from '../api/loanApi';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
 
 export default function Borrow() {
-  const navigate   = useNavigate();
-  const { user, token }   = useAuth();
-  const wallet     = useWallet();
+  const navigate           = useNavigate();
+  const { user, token }    = useAuth();
+  const wallet             = useWallet();
   const { checkStatus, zkStatus } = useZkProof();
   const [zkChecked, setZkChecked] = useState(false);
 
@@ -23,16 +27,21 @@ export default function Borrow() {
     }
   }, [user, navigate]);
 
-  // Check ZK verification status on mount
   useEffect(() => {
     if (token && !zkChecked) {
       checkStatus(token).finally(() => setZkChecked(true));
     }
   }, [token, zkChecked, checkStatus]);
 
-  const [ethPrice,    setEthPrice]    = useState(null);
+  // ETH price for display reference
+  const [ethPrice,     setEthPrice]     = useState(null);
   const [priceLoading, setPriceLoading] = useState(true);
   const priceRef = useRef(null);
+
+  // Approved guarantors (pre-approvals with no loan yet)
+  const [approvedGuarantors, setApprovedGuarantors] = useState([]);
+  const [guarantorsLoading,  setGuarantorsLoading]  = useState(true);
+  const [selectedGuarantor,  setSelectedGuarantor]  = useState(null);
 
   const [form, setForm] = useState({
     principalUsd:    '',
@@ -40,9 +49,9 @@ export default function Borrow() {
     interestRateBps: '1200',
   });
   const [loading, setLoading] = useState(false);
-  const [step, setStep]       = useState('form'); // form | chain | backend | done
+  const [step,    setStep]    = useState('form'); // form | backend | done
 
-  // Fetch ETH/USD price
+  // ── Fetch ETH price ────────────────────────────────────
   async function fetchEthPrice() {
     setPriceLoading(true);
     try {
@@ -61,37 +70,50 @@ export default function Borrow() {
 
   useEffect(() => { fetchEthPrice(); }, []);
 
-  // Derived values
-  const principalUsd   = Number(form.principalUsd) || 0;
-  const principalEth   = ethPrice && principalUsd ? (principalUsd / ethPrice) : null;
-  // Collateral must be worth 150% of principal in USD → 1.5× the ETH amount
-  const collateralEth  = principalEth ? principalEth * 1.5 : null;
-  const collateralUsd  = collateralEth && ethPrice ? collateralEth * ethPrice : null;
+  // ── Fetch approved guarantors ──────────────────────────
+  useEffect(() => {
+    if (!token) return;
+    setGuarantorsLoading(true);
+    getMyGuarantorRequests()
+      .then(r => {
+        // Only show approved pre-approvals that are not yet linked to a loan
+        const approved = (r.data.requests || []).filter(
+          g => g.status === 'approved' && !g.loan
+        );
+        setApprovedGuarantors(approved);
+        if (approved.length === 1) setSelectedGuarantor(approved[0]);
+      })
+      .catch(() => {})
+      .finally(() => setGuarantorsLoading(false));
+  }, [token]);
+
+  // ── Derived values ──────────────────────────────────────
+  const principalUsd = Number(form.principalUsd) || 0;
+  const principalEth = ethPrice && principalUsd ? (principalUsd / ethPrice) : null;
 
   const interestPercent      = (Number(form.interestRateBps) / 100).toFixed(1);
   const estimatedInterestEth = principalEth && form.durationDays
     ? principalEth * (Number(form.interestRateBps) / 10000) * (Number(form.durationDays) / 365)
     : null;
-  const totalRepayEth = estimatedInterestEth !== null
-    ? principalEth + estimatedInterestEth
-    : null;
+  const totalRepayEth = estimatedInterestEth !== null ? principalEth + estimatedInterestEth : null;
   const totalRepayUsd = totalRepayEth && ethPrice ? totalRepayEth * ethPrice : null;
 
+  // ── Submit ──────────────────────────────────────────────
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.principalUsd || !ethPrice) {
       return toast.error('Enter the loan amount and wait for ETH price to load');
     }
     if (principalUsd <= 0) return toast.error('Loan amount must be greater than 0');
+    if (!selectedGuarantor) return toast.error('You must select an approved guarantor');
 
     setLoading(true);
     try {
-      // Step 1: Connect wallet
-      toast('Step 1/3 — Connecting wallet…', { icon: '🦊' });
+      // Connect wallet for ownership verification
+      toast('Connecting wallet…', { icon: '🦊' });
       const addr = wallet.account || await wallet.connect();
       if (!addr) { setLoading(false); return; }
 
-      // Verify wallet ownership if not already verified for this address
       if (!user?.walletAddress || user.walletAddress.toLowerCase() !== addr.toLowerCase()) {
         toast('Verifying wallet ownership — sign the message in MetaMask…', { icon: '🔐' });
         try {
@@ -104,29 +126,18 @@ export default function Borrow() {
       }
 
       const pEth = principalEth.toFixed(8);
-      const cEth = collateralEth.toFixed(8);
 
-      // Step 2: Send tx to blockchain
-      setStep('chain');
-      toast('Step 2/3 — Sending to blockchain (MetaMask will open)…', { icon: '⛓️' });
-      const { onChainId, txHash } = await wallet.callCreateLoan(
-        pEth,
-        cEth,
-        form.durationDays,
-        form.interestRateBps
-      );
-
-      // Step 3: Register in backend
+      // Non-collateral loan: save directly to DB (no blockchain tx needed)
       setStep('backend');
-      toast('Step 3/3 — Saving to database…', { icon: '💾' });
+      toast('Saving your loan request…', { icon: '💾' });
       await createLoan({
-        onChainId,
-        createTxHash:    txHash,
-        borrowerAddress: addr,
-        principal:       Number(pEth),
-        collateral:      Number(cEth),
-        interestRateBps: Number(form.interestRateBps),
-        durationDays:    Number(form.durationDays),
+        borrowerAddress:    addr,
+        principal:          Number(pEth),
+        collateral:         0,
+        interestRateBps:    Number(form.interestRateBps),
+        durationDays:       Number(form.durationDays),
+        guarantorRequestId: selectedGuarantor._id,
+        loanType:           'guarantor',
       });
 
       setStep('done');
@@ -134,7 +145,7 @@ export default function Borrow() {
       setTimeout(() => navigate('/dashboard'), 2000);
     } catch (err) {
       console.error(err);
-      toast.error(err?.response?.data?.message || err.message || 'Transaction failed');
+      toast.error(err?.response?.data?.message || err.message || 'Submission failed');
       setStep('form');
     } finally {
       setLoading(false);
@@ -143,7 +154,7 @@ export default function Borrow() {
 
   const zkVerified = user?.zkVerified || zkStatus?.verified;
 
-  // ZK gate: show prompt if not verified yet
+  // ── ZK gate ─────────────────────────────────────────────
   if (zkChecked && !zkVerified) {
     return (
       <div className="page-auth" style={{ background: 'linear-gradient(135deg, #342f30 0%, #60180b 50%, #342f30 100%)' }}>
@@ -154,32 +165,11 @@ export default function Borrow() {
             LendChain uses <strong style={{ color: '#FF8C69' }}>Zero-Knowledge Proofs</strong> to verify borrowers
             anonymously. Complete a 30-second ZK check — no documents uploaded, no PII stored.
           </p>
-          <div style={{
-            background: 'rgba(255,255,255,0.07)', borderRadius: 12,
-            padding: '14px 16px', marginBottom: 24, textAlign: 'left',
-          }}>
-            {[
-              '✓ Your name stays hidden from lenders',
-              '✓ No documents uploaded to any server',
-              '✓ Identity revealed only if you default',
-              '✓ Powered by Reclaim Protocol (zkTLS)',
-            ].map((line, i) => (
-              <p key={i} style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', padding: '4px 0' }}>{line}</p>
-            ))}
-          </div>
           <div style={{ display: 'flex', gap: 12 }}>
-            <button
-              className="btn btn-primary auth-submit"
-              style={{ flex: 2 }}
-              onClick={() => navigate('/zk-verify')}
-            >
+            <button className="btn btn-primary auth-submit" style={{ flex: 2 }} onClick={() => navigate('/zk-verify')}>
               <ShieldCheck size={18} /> Verify Anonymously
             </button>
-            <button
-              className="btn btn-ghost"
-              style={{ flex: 1, color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.2)' }}
-              onClick={() => navigate('/dashboard')}
-            >
+            <button className="btn btn-ghost" style={{ flex: 1, color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.2)' }} onClick={() => navigate('/dashboard')}>
               <ArrowLeft size={16} /> Back
             </button>
           </div>
@@ -190,19 +180,18 @@ export default function Borrow() {
 
   return (
     <div className="page-auth" style={{ background: 'linear-gradient(135deg, #342f30 0%, #60180b 50%, #342f30 100%)' }}>
-      <div className="auth-card" style={{ maxWidth: 520 }}>
+      <div className="auth-card" style={{ maxWidth: 540 }}>
+
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="btn btn-ghost"
-            style={{ padding: '8px 12px', fontSize: 14, borderRadius: 10 }}
-          >
+          <button onClick={() => navigate('/dashboard')} className="btn btn-ghost" style={{ padding: '8px 12px', fontSize: 14, borderRadius: 10 }}>
             <ArrowLeft size={16} />
           </button>
           <div>
             <h1 className="auth-title" style={{ textAlign: 'left', marginBottom: 2 }}>Request a Loan</h1>
-            <p className="auth-subtitle" style={{ textAlign: 'left' }}>Enter USD amount — collateral auto-calculated at 150%</p>
+            <p className="auth-subtitle" style={{ textAlign: 'left' }}>
+              Non-collateral · guaranteed by a trusted user
+            </p>
           </div>
         </div>
 
@@ -212,9 +201,7 @@ export default function Borrow() {
           background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)',
           borderRadius: 12, padding: '10px 14px', marginBottom: 16,
         }}>
-          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
-            ETH/USD rate:
-          </span>
+          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>ETH/USD rate:</span>
           {priceLoading ? (
             <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Loading…</span>
           ) : ethPrice ? (
@@ -224,11 +211,7 @@ export default function Borrow() {
           ) : (
             <span style={{ fontSize: 13, color: '#ba1a1a' }}>Unavailable</span>
           )}
-          <button
-            onClick={fetchEthPrice}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', padding: 4 }}
-            title="Refresh price"
-          >
+          <button onClick={fetchEthPrice} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', padding: 4 }} title="Refresh price">
             <RefreshCw size={14} />
           </button>
         </div>
@@ -242,19 +225,97 @@ export default function Borrow() {
         }}>
           <Wallet size={16} color={wallet.account ? '#00373f' : '#815249'} />
           <span style={{ fontSize: 13, fontWeight: 600, color: wallet.account ? '#00373f' : '#815249' }}>
-            {wallet.account
-              ? `${wallet.account.slice(0, 6)}…${wallet.account.slice(-4)}`
-              : 'Wallet not connected'}
+            {wallet.account ? `${wallet.account.slice(0, 6)}…${wallet.account.slice(-4)}` : 'Wallet not connected'}
           </span>
           {!wallet.account && (
-            <button
-              onClick={wallet.connect}
-              disabled={wallet.connecting}
-              style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, background: '#60180b', color: 'white', border: 'none', borderRadius: 8, padding: '4px 12px', cursor: 'pointer' }}
-            >
+            <button onClick={wallet.connect} disabled={wallet.connecting}
+              style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, background: '#60180b', color: 'white', border: 'none', borderRadius: 8, padding: '4px 12px', cursor: 'pointer' }}>
               Connect
             </button>
           )}
+        </div>
+
+        {/* ── Guarantor Selection ─────────────────────── */}
+        <div style={{
+          marginBottom: 24, borderRadius: 14, overflow: 'hidden',
+          border: selectedGuarantor ? '2px solid #00373f' : '2px solid rgba(196,128,58,0.5)',
+          background: selectedGuarantor ? 'rgba(0,55,63,0.05)' : 'rgba(196,128,58,0.05)',
+        }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <UserCheck size={16} color={selectedGuarantor ? '#00373f' : '#c4803a'} />
+              <span style={{ fontWeight: 700, fontSize: 14, color: selectedGuarantor ? '#00373f' : '#815249' }}>
+                Approved Guarantor <span style={{ color: '#ba1a1a' }}>*</span>
+              </span>
+            </div>
+            {!selectedGuarantor && (
+              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 12px', color: '#c4803a', border: '1px solid rgba(196,128,58,0.4)' }}
+                onClick={() => navigate('/guarantor-request')}>
+                <ChevronRight size={13} /> Get One
+              </button>
+            )}
+          </div>
+
+          <div style={{ padding: '14px 18px' }}>
+            {guarantorsLoading ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
+                <div className="spinner spinner-sm" style={{ borderTopColor: '#FF8C69', borderColor: 'rgba(255,255,255,0.2)' }} />
+                Loading your guarantors…
+              </div>
+            ) : approvedGuarantors.length === 0 ? (
+              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+                <AlertTriangle size={15} color="#c4803a" style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                <span style={{ color: 'rgba(255,255,255,0.75)' }}>
+                  You have no approved guarantors yet.{' '}
+                </span>
+                <button className="btn btn-ghost"
+                  style={{ fontSize: 12, color: '#FF8C69', padding: '2px 0', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
+                  onClick={() => navigate('/guarantor-request')}>
+                  Request a guarantor →
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {approvedGuarantors.map(g => {
+                  const gName = g.guarantor?.name || g.guarantorAddress?.slice(0, 10) + '…';
+                  const isSelected = selectedGuarantor?._id === g._id;
+                  return (
+                    <label key={g._id} style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      border: `2px solid ${isSelected ? '#00373f' : 'rgba(255,255,255,0.15)'}`,
+                      borderRadius: 10, padding: '12px 14px', cursor: 'pointer',
+                      background: isSelected ? 'rgba(0,55,63,0.08)' : 'rgba(255,255,255,0.04)',
+                      transition: 'all 0.2s',
+                    }}>
+                      <input type="radio" name="guarantor" value={g._id}
+                        checked={isSelected}
+                        onChange={() => setSelectedGuarantor(g)}
+                        style={{ accentColor: '#00373f' }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                          <span style={{ fontWeight: 700, fontSize: 14, color: 'rgba(255,255,255,0.95)' }}>
+                            {gName}
+                          </span>
+                          {g.guarantor?.zkVerified && (
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#00b4a0', background: 'rgba(0,180,160,0.15)', borderRadius: 4, padding: '1px 6px', display: 'flex', alignItems: 'center', gap: 3 }}>
+                              <ShieldCheck size={9} /> ZK
+                            </span>
+                          )}
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#00b47e', background: 'rgba(0,180,126,0.15)', borderRadius: 4, padding: '1px 6px' }}>
+                            ✓ Approved
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', fontFamily: 'monospace' }}>
+                          Liable up to {g.guaranteeAmountEth} ETH
+                        </span>
+                      </div>
+                      {isSelected && <CheckCircle size={18} color="#00373f" />}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
@@ -274,29 +335,6 @@ export default function Borrow() {
               <span style={{ fontSize: 12, color: '#8a7e80', marginTop: 4, display: 'block' }}>
                 ≈ {principalEth.toFixed(6)} ETH at current rate
               </span>
-            )}
-          </div>
-
-          {/* Collateral — auto-calculated, read-only */}
-          <div className="form-group">
-            <label>
-              <AlertTriangle size={14} style={{ marginRight: 6, verticalAlign: 'middle', color: '#00373f' }} />
-              Required Collateral (auto — 150% of loan)
-            </label>
-            <input
-              type="text"
-              readOnly
-              value={
-                collateralEth !== null
-                  ? `${collateralEth.toFixed(6)} ETH  ≈  $${collateralUsd.toFixed(2)}`
-                  : '—'
-              }
-              style={{ background: 'rgba(0,55,63,0.06)', cursor: 'default', color: '#00373f', fontWeight: 600 }}
-            />
-            {collateralEth !== null && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#00373f', marginTop: 4 }}>
-                <CheckCircle size={14} /> Collateral ratio: 150% — Safe
-              </div>
             )}
           </div>
 
@@ -330,27 +368,35 @@ export default function Borrow() {
           </div>
 
           {/* Summary box */}
-          {totalRepayEth !== null && (
+          {totalRepayEth !== null && selectedGuarantor && (
             <div style={{
-              background: 'linear-gradient(135deg, #fef2f0, #f5e8e5)',
-              border: '1px solid rgba(96,24,11,0.2)',
+              background: 'linear-gradient(135deg, rgba(0,55,63,0.12), rgba(0,55,63,0.06))',
+              border: '1px solid rgba(0,55,63,0.3)',
               borderRadius: 14, padding: '16px 18px',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, fontWeight: 700, color: '#60180b', fontSize: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, fontWeight: 700, color: '#00b4a0', fontSize: 14 }}>
                 <Info size={14} /> Loan Summary
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 13 }}>
-                <span style={{ color: '#8a7e80' }}>You receive:</span>
-                <span style={{ fontWeight: 700 }}>${principalUsd.toFixed(2)} ({principalEth.toFixed(6)} ETH)</span>
+                <span style={{ color: 'rgba(255,255,255,0.55)' }}>You receive:</span>
+                <span style={{ fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>
+                  ${principalUsd.toFixed(2)} ({principalEth.toFixed(6)} ETH)
+                </span>
 
-                <span style={{ color: '#8a7e80' }}>Collateral locked:</span>
-                <span style={{ fontWeight: 700 }}>${collateralUsd.toFixed(2)} ({collateralEth.toFixed(6)} ETH)</span>
+                <span style={{ color: 'rgba(255,255,255,0.55)' }}>Collateral locked:</span>
+                <span style={{ fontWeight: 700, color: '#00b47e' }}>None — Guarantor-backed</span>
 
-                <span style={{ color: '#8a7e80' }}>Interest ({interestPercent}% for {form.durationDays}d):</span>
-                <span style={{ fontWeight: 700 }}>~{estimatedInterestEth.toFixed(6)} ETH</span>
+                <span style={{ color: 'rgba(255,255,255,0.55)' }}>Guarantor:</span>
+                <span style={{ fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>
+                  {selectedGuarantor?.guarantor?.name || 'Selected'}
+                  {' '}(liable up to {selectedGuarantor?.guaranteeAmountEth} ETH)
+                </span>
 
-                <span style={{ color: '#8a7e80' }}>Total to repay:</span>
-                <span style={{ fontWeight: 700, color: '#60180b' }}>
+                <span style={{ color: 'rgba(255,255,255,0.55)' }}>Interest ({interestPercent}% for {form.durationDays}d):</span>
+                <span style={{ fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>~{estimatedInterestEth.toFixed(6)} ETH</span>
+
+                <span style={{ color: 'rgba(255,255,255,0.55)' }}>Total to repay:</span>
+                <span style={{ fontWeight: 700, color: '#FF8C69' }}>
                   ~${totalRepayUsd.toFixed(2)} ({totalRepayEth.toFixed(6)} ETH)
                 </span>
               </div>
@@ -360,12 +406,12 @@ export default function Borrow() {
           {/* Step indicator */}
           {step !== 'form' && (
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              {['chain', 'backend', 'done'].map((s, i) => (
+              {['backend', 'done'].map((s, i) => (
                 <div key={s} style={{
                   width: 28, height: 28, borderRadius: '50%', fontSize: 13, fontWeight: 700,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: ['chain', 'backend', 'done'].indexOf(step) >= i ? '#60180b' : '#E5E7EB',
-                  color: ['chain', 'backend', 'done'].indexOf(step) >= i ? 'white' : '#8a7e80',
+                  background: ['backend', 'done'].indexOf(step) >= i ? '#00373f' : 'rgba(255,255,255,0.15)',
+                  color: ['backend', 'done'].indexOf(step) >= i ? 'white' : 'rgba(255,255,255,0.4)',
                   transition: 'all 0.3s',
                 }}>{i + 1}</div>
               ))}
@@ -375,11 +421,11 @@ export default function Borrow() {
           <button
             type="submit"
             className="btn btn-primary auth-submit"
-            disabled={loading || !principalEth || priceLoading}
+            disabled={loading || !principalEth || priceLoading || !selectedGuarantor}
           >
             {loading
-              ? <><div className="spinner spinner-sm" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} /> Processing…</>
-              : <><Wallet size={18} /> Request Loan via MetaMask</>
+              ? <><div className="spinner spinner-sm" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} />Processing…</>
+              : <><Wallet size={18} /> Submit Loan Request</>
             }
           </button>
         </form>

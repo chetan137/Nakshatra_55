@@ -33,22 +33,42 @@ async function requireTxHash(txHash, label) {
 router.post('/', verifyToken, async (req, res, next) => {
   try {
     const {
-      onChainId, principal, collateral,
+      onChainId, principal,
+      collateral = 0,
       interestRateBps, durationDays,
       borrowerAddress, createTxHash,
+      guarantorRequestId,
+      loanType = 'guarantor',
     } = req.body;
 
-    if (!principal || !collateral || !interestRateBps || !durationDays || !borrowerAddress) {
+    if (!principal || !interestRateBps || !durationDays || !borrowerAddress) {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
-    // Validate collateral ratio (values are ETH floats from frontend)
-    const ratio = Number(collateral) / Number(principal);
-    if (ratio < 1.5) {
+    // ── Guarantor-backed (non-collateral) loan ────────────────────────
+    const Guarantor = require('../models/Guarantor');
+    if (!guarantorRequestId) {
       return res.status(400).json({
         success: false,
-        message: `Collateral ratio is ${(ratio * 100).toFixed(0)}% — must be ≥ 150%`,
+        message: 'A guarantor is required. Please get a guarantor approved before creating a loan.',
       });
+    }
+    const gRecord = await Guarantor.findById(guarantorRequestId)
+      .populate('guarantor', 'name walletAddress');
+    if (!gRecord) {
+      return res.status(404).json({ success: false, message: 'Guarantor request not found' });
+    }
+    if (String(gRecord.borrower) !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'This guarantor request does not belong to you' });
+    }
+    if (gRecord.status !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: `Guarantor request is ${gRecord.status}. Wait for the guarantor to approve your request.`,
+      });
+    }
+    if (gRecord.loan) {
+      return res.status(400).json({ success: false, message: 'This guarantor approval is already linked to another loan.' });
     }
 
     await requireTxHash(createTxHash, 'createTxHash');
@@ -59,17 +79,24 @@ router.post('/', verifyToken, async (req, res, next) => {
     ]);
 
     const loan = await Loan.create({
-      onChainId:       onChainId ?? null,
-      createTxHash:    createTxHash || null,
-      borrower:        req.user._id,
+      onChainId:        onChainId   ?? null,
+      createTxHash:     createTxHash || null,
+      borrower:         req.user._id,
       borrowerAddress,
-      principal:       Number(principal),
-      collateral:      Number(collateral),
-      interestRateBps: Number(interestRateBps),
-      durationDays:    Number(durationDays),
-      riskScore:       riskScoreVal,
-      status:          'pending',
+      principal:        Number(principal),
+      collateral:       0,
+      interestRateBps:  Number(interestRateBps),
+      durationDays:     Number(durationDays),
+      riskScore:        riskScoreVal,
+      status:           'pending',
+      loanType:         'guarantor',
+      guarantorRequest: gRecord._id,
+      guarantorAddress: gRecord.guarantorAddress,
+      guarantorStatus:  'approved',
     });
+
+    // Link the guarantor record back to this loan
+    await Guarantor.findByIdAndUpdate(gRecord._id, { loan: loan._id });
 
     res.status(201).json({ success: true, loan });
   } catch (err) {

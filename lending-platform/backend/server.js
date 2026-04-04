@@ -4,9 +4,10 @@ const cors      = require('cors');
 const mongoose  = require('mongoose');
 const rateLimit = require('express-rate-limit');
 
-const authRoutes     = require('./routes/auth');
-const loanRoutes     = require('./routes/loans');
-const zkRoutes       = require('./routes/zk');
+const authRoutes      = require('./routes/auth');
+const loanRoutes      = require('./routes/loans');
+const zkRoutes        = require('./routes/zk');
+const guarantorRoutes = require('./routes/guarantor');
 const { startMonitoring } = require('./services/monitoringService');
 
 // ── Startup env validation ─────────────────────────────────
@@ -51,9 +52,10 @@ app.use('/api', apiLimiter);
 app.use('/api/auth', authLimiter);
 
 // ── Routes ─────────────────────────────────────────────────
-app.use('/api/auth',  authRoutes);
-app.use('/api/loans', loanRoutes);
-app.use('/api/zk',    zkRoutes);
+app.use('/api/auth',       authRoutes);
+app.use('/api/loans',      loanRoutes);
+app.use('/api/zk',         zkRoutes);
+app.use('/api/guarantor',  guarantorRoutes);
 
 // ── ETH/USD price — median of 3 sources (60s cache) ──────────
 let _ethPriceCache = { usd: null, ts: 0 };

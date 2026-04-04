@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Wallet, Mail, Shield, ShieldCheck, LogOut, ChevronRight,
   TrendingUp, TrendingDown, Clock, CheckCircle,
-  DollarSign, Activity, History, Plus, Lock,
+  DollarSign, Activity, History, Plus, Lock, Users, Inbox,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -53,6 +53,12 @@ export default function Dashboard() {
       label: isZkVerified ? 'ZK Verified ✓' : 'ZK Verify',
       icon: isZkVerified ? <ShieldCheck size={18} /> : <Shield size={18} />,
       action: () => navigate('/zk-verify'),
+    },
+    {
+      id: 'guarantor-inbox',
+      label: 'Guarantor Inbox',
+      icon: <Inbox size={18} />,
+      action: () => navigate('/guarantor-inbox'),
     },
   ];
 
@@ -163,6 +169,47 @@ export default function Dashboard() {
               </p>
               <button className="btn" style={{ background: 'white', color: '#00373f' }} onClick={() => navigate('/lend')}>
                 Browse Loans <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
+
+          {/* Guarantor CTA — Borrower: request guarantor */}
+          {user.role === 'borrower' && (
+            <div className="card" style={{ border: '1px solid rgba(107,78,255,0.25)', background: 'rgba(107,78,255,0.04)' }}>
+              <h3 className="card-heading" style={{ marginBottom: 8, color: '#342f30' }}>
+                <Users size={20} style={{ marginRight: 8, verticalAlign: 'middle', color: '#6B4EFF' }} />
+                Need a Guarantor?
+              </h3>
+              <p style={{ color: '#8a7e80', marginBottom: 16, fontSize: 14 }}>
+                Add a non-collateral guarantor to your loan. Search by MetaMask wallet address —
+                only they get notified.
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn" style={{ flex: 1, background: '#6B4EFF', color: 'white', fontSize: 13 }}
+                  onClick={() => navigate('/guarantor-request')}>
+                  <Users size={14} /> Request Guarantor
+                </button>
+                <button className="btn btn-secondary" style={{ flex: 1, fontSize: 13 }}
+                  onClick={() => navigate('/guarantor-inbox')}>
+                  <Inbox size={14} /> My Inbox
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Guarantor CTA — Lender/any: check inbox */}
+          {user.role !== 'borrower' && (
+            <div className="card" style={{ border: '1px solid rgba(107,78,255,0.25)', background: 'rgba(107,78,255,0.04)' }}>
+              <h3 className="card-heading" style={{ marginBottom: 8, color: '#342f30' }}>
+                <Inbox size={20} style={{ marginRight: 8, verticalAlign: 'middle', color: '#6B4EFF' }} />
+                Guarantor Inbox
+              </h3>
+              <p style={{ color: '#8a7e80', marginBottom: 16, fontSize: 14 }}>
+                Check if anyone has requested you as a guarantor for their loan.
+              </p>
+              <button className="btn" style={{ background: '#6B4EFF', color: 'white', fontSize: 13 }}
+                onClick={() => navigate('/guarantor-inbox')}>
+                View Inbox <ChevronRight size={14} />
               </button>
             </div>
           )}

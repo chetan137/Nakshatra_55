@@ -319,4 +319,179 @@ async function sendLiquidationAlert(lender, borrower, loan, currentRatio, reason
   }
 }
 
-module.exports = { sendOTPEmail, sendMarginCallAlert, sendLiquidationAlert };
+// ── Guarantor Request Notification ────────────────────────────
+/**
+ * Sent ONLY to the specific guarantor user when a borrower requests them.
+ * @param {object} guarantorUser   { name, email }
+ * @param {object} borrowerUser    { name, walletAddress }
+ * @param {object} loan            { _id, principal, durationDays, interestRateBps }
+ * @param {number} guaranteeAmount ETH amount guarantor is liable for
+ * @param {string} borrowerMessage optional message from borrower
+ */
+async function sendGuarantorRequestEmail(guarantorUser, borrowerUser, loan, guaranteeAmount, borrowerMessage) {
+  const loanShortId = loan._id.toString().slice(-8).toUpperCase();
+  const interestPct = (loan.interestRateBps / 100).toFixed(1);
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const inboxUrl    = `${frontendUrl}/guarantor-inbox`;
+
+  const html = `
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#0F0A1E;font-family:'Inter',Arial,sans-serif;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#0F0A1E;padding:40px 16px;">
+    <tr><td align="center">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="500" style="max-width:500px;width:100%;">
+        <tr><td align="center" style="padding-bottom:32px;">
+          <span style="font-size:28px;font-weight:800;color:#6B4EFF;">Lend</span><span style="font-size:28px;font-weight:800;color:#FF8C69;">Chain</span>
+        </td></tr>
+        <tr><td style="background:#1A1040;border-radius:20px;padding:40px 36px;">
+
+          <div style="background:rgba(107,78,255,0.15);border:1px solid #6B4EFF;border-radius:12px;padding:16px 20px;margin-bottom:28px;">
+            <p style="margin:0;font-size:18px;font-weight:800;color:#C4B5FD;">🤝 You've Been Asked to Guarantee a Loan</p>
+          </div>
+
+          <p style="margin:0 0 8px;font-size:15px;color:#C4B5FD;line-height:1.6;">Hi <strong style="color:#fff;">${guarantorUser.name}</strong>,</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#C4B5FD;line-height:1.6;">
+            <strong style="color:#FF8C69;">${borrowerUser.name}</strong> has requested you as a <strong style="color:#fff;">Guarantor</strong>
+            for their loan on LendChain. As a guarantor, you promise to cover the loan if the borrower is unable to pay.
+          </p>
+
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;background:rgba(255,255,255,0.04);border-radius:12px;padding:16px;">
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#8B7EC8;font-size:13px;">Loan ID</td>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#fff;font-size:13px;text-align:right;">#${loanShortId}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#8B7EC8;font-size:13px;">Borrower Wallet</td>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#FF8C69;font-size:12px;text-align:right;font-family:monospace;">${borrowerUser.walletAddress?.slice(0, 8)}…${borrowerUser.walletAddress?.slice(-6)}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#8B7EC8;font-size:13px;">Loan Amount</td>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#fff;font-size:13px;text-align:right;">${loan.principal} ETH</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#8B7EC8;font-size:13px;">Duration</td>
+              <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);color:#fff;font-size:13px;text-align:right;">${loan.durationDays} days @ ${interestPct}% APR</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;color:#8B7EC8;font-size:13px;font-weight:700;">Your Guarantee Liability</td>
+              <td style="padding:8px 0;color:#FF4D4D;font-size:14px;font-weight:800;text-align:right;">${guaranteeAmount} ETH</td>
+            </tr>
+          </table>
+
+          ${borrowerMessage ? `
+          <div style="background:#2D1B69;border-radius:12px;padding:14px 18px;margin-bottom:24px;">
+            <p style="margin:0 0 6px;font-size:12px;color:#8B7EC8;font-weight:600;">MESSAGE FROM BORROWER:</p>
+            <p style="margin:0;font-size:14px;color:#C4B5FD;font-style:italic;">"${borrowerMessage}"</p>
+          </div>` : ''}
+
+          <div style="background:rgba(255,76,76,0.08);border:1px solid rgba(255,76,76,0.3);border-radius:12px;padding:14px 18px;margin-bottom:28px;">
+            <p style="margin:0;font-size:13px;color:#FFB3B3;line-height:1.6;">
+              ⚠️ <strong>Important:</strong> If you approve this guarantee and the borrower defaults,
+              you will be held responsible for repaying <strong>${guaranteeAmount} ETH</strong>.
+              Only approve if you trust this borrower and can cover the amount.
+            </p>
+          </div>
+
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="padding-right:8px;" width="50%">
+                <a href="${inboxUrl}" style="display:block;text-align:center;background:#6B4EFF;color:#fff;font-weight:700;font-size:14px;padding:14px;border-radius:10px;text-decoration:none;">
+                  ✅ Review Request
+                </a>
+              </td>
+              <td style="padding-left:8px;" width="50%">
+                <a href="${inboxUrl}" style="display:block;text-align:center;background:rgba(255,255,255,0.06);color:#C4B5FD;font-weight:700;font-size:14px;padding:14px;border-radius:10px;text-decoration:none;border:1px solid rgba(255,255,255,0.1);">
+                  View Inbox
+                </a>
+              </td>
+            </tr>
+          </table>
+
+        </td></tr>
+        <tr><td align="center" style="padding-top:24px;">
+          <p style="margin:0;font-size:12px;color:#4A3F6B;">© ${new Date().getFullYear()} LendChain. This notification was sent only to you.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  await sendBrevo(
+    [{ email: guarantorUser.email, name: guarantorUser.name }],
+    `🤝 Guarantee Request for Loan #${loanShortId} — Action Required`,
+    html
+  );
+}
+
+// ── Guarantor Response Notification (to borrower) ─────────────
+/**
+ * Sent to borrower when guarantor approves or rejects.
+ * @param {object} borrowerUser   { name, email }
+ * @param {object} guarantorUser  { name, walletAddress }
+ * @param {object} loan           { _id, principal }
+ * @param {'approved'|'rejected'} decision
+ * @param {string} guarantorNote
+ */
+async function sendGuarantorResponseEmail(borrowerUser, guarantorUser, loan, decision, guarantorNote) {
+  const loanShortId = loan._id.toString().slice(-8).toUpperCase();
+  const isApproved  = decision === 'approved';
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+  const html = `
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#0F0A1E;font-family:'Inter',Arial,sans-serif;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#0F0A1E;padding:40px 16px;">
+    <tr><td align="center">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="500" style="max-width:500px;width:100%;">
+        <tr><td align="center" style="padding-bottom:32px;">
+          <span style="font-size:28px;font-weight:800;color:#6B4EFF;">Lend</span><span style="font-size:28px;font-weight:800;color:#FF8C69;">Chain</span>
+        </td></tr>
+        <tr><td style="background:#1A1040;border-radius:20px;padding:40px 36px;">
+
+          <div style="background:${isApproved ? 'rgba(0,200,150,0.12)' : 'rgba(255,76,76,0.12)'};border:1px solid ${isApproved ? '#00C896' : '#FF4D4D'};border-radius:12px;padding:16px 20px;margin-bottom:28px;">
+            <p style="margin:0;font-size:18px;font-weight:800;color:${isApproved ? '#00C896' : '#FF4D4D'};">
+              ${isApproved ? '✅ Guarantee Approved!' : '❌ Guarantee Rejected'}
+            </p>
+          </div>
+
+          <p style="margin:0 0 8px;font-size:15px;color:#C4B5FD;line-height:1.6;">Hi <strong style="color:#fff;">${borrowerUser.name}</strong>,</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#C4B5FD;line-height:1.6;">
+            ${isApproved
+              ? `<strong style="color:#FF8C69;">${guarantorUser.name}</strong> has <strong style="color:#00C896;">approved</strong> your guarantee request for loan <strong style="color:#fff;">#${loanShortId}</strong>. Your loan is now backed by a guarantor.`
+              : `<strong style="color:#FF8C69;">${guarantorUser.name}</strong> has <strong style="color:#FF4D4D;">declined</strong> your guarantee request for loan <strong style="color:#fff;">#${loanShortId}</strong>. Please find another guarantor.`
+            }
+          </p>
+
+          ${guarantorNote ? `
+          <div style="background:#2D1B69;border-radius:12px;padding:14px 18px;margin-bottom:24px;">
+            <p style="margin:0 0 6px;font-size:12px;color:#8B7EC8;font-weight:600;">GUARANTOR'S NOTE:</p>
+            <p style="margin:0;font-size:14px;color:#C4B5FD;font-style:italic;">"${guarantorNote}"</p>
+          </div>` : ''}
+
+          <a href="${frontendUrl}/borrow" style="display:block;text-align:center;background:#6B4EFF;color:#fff;font-weight:700;font-size:14px;padding:14px;border-radius:10px;text-decoration:none;">
+            ${isApproved ? 'Proceed to Borrow' : 'Request Another Guarantor'}
+          </a>
+
+        </td></tr>
+        <tr><td align="center" style="padding-top:24px;">
+          <p style="margin:0;font-size:12px;color:#4A3F6B;">© ${new Date().getFullYear()} LendChain. All rights reserved.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  await sendBrevo(
+    [{ email: borrowerUser.email, name: borrowerUser.name }],
+    `${isApproved ? '✅ Guarantee Approved' : '❌ Guarantee Rejected'} — Loan #${loanShortId}`,
+    html
+  );
+}
+
+module.exports = {
+  sendOTPEmail,
+  sendMarginCallAlert,
+  sendLiquidationAlert,
+  sendGuarantorRequestEmail,
+  sendGuarantorResponseEmail,
+};
