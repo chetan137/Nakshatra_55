@@ -1,8 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
 import LendingPlatformABI from '../abi/LendingPlatform.json';
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || '';
+
+// Sepolia chain ID (hex and decimal)
+const SEPOLIA_CHAIN_ID     = 11155111;
+const SEPOLIA_CHAIN_ID_HEX = '0xaa36a7';
 
 /**
  * useWallet — MetaMask connection + smart contract calls.
@@ -10,19 +14,87 @@ const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || '';
  * Returns:
  *  account      — connected wallet address (or null)
  *  connecting   — loading state
- *  connect()    — prompt MetaMask
+ *  chainOk      — true if user is on Sepolia
+ *  connect()    — prompt MetaMask, checks network
  *  disconnect() — clear state
+ *  switchToSepolia() — ask MetaMask to switch chains
  *  getContract  — returns a signer-connected contract instance
  *  callCreateLoan(principal, collateral, durationDays, interestRateBps)
  *  callFundLoan(onChainId, principal)
- *  callRepayLoan(onChainId, totalOwedWei)
- *  callLiquidate(onChainId)
+ *  callRepayLoan(onChainId, totalOwedEth)
+ *  callLiquidateLoanIfNeeded(onChainId)
  *  callCancelLoan(onChainId)
  */
 export function useWallet() {
   const [account,    setAccount]    = useState(null);
   const [connecting, setConnecting] = useState(false);
   const [signer,     setSigner]     = useState(null);
+  const [chainOk,    setChainOk]    = useState(false);
+
+  // ── Listen for MetaMask account / chain changes ─────────
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    const handleAccountsChanged = (accounts) => {
+      if (accounts.length === 0) {
+        setAccount(null);
+        setSigner(null);
+        setChainOk(false);
+      } else {
+        setAccount(accounts[0]);
+        // Re-init signer when account switches
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        provider.getSigner().then(s => {
+          setSigner(s);
+        }).catch(() => {});
+      }
+    };
+
+    const handleChainChanged = (chainIdHex) => {
+      const id = parseInt(chainIdHex, 16);
+      setChainOk(id === SEPOLIA_CHAIN_ID);
+    };
+
+    window.ethereum.on('accountsChanged', handleAccountsChanged);
+    window.ethereum.on('chainChanged',    handleChainChanged);
+
+    return () => {
+      window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      window.ethereum.removeListener('chainChanged',    handleChainChanged);
+    };
+  }, []);
+
+  /** Ask MetaMask to switch to Sepolia */
+  const switchToSepolia = useCallback(async () => {
+    if (!window.ethereum) return false;
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
+      });
+      return true;
+    } catch (switchErr) {
+      // Chain not added yet — add it
+      if (switchErr.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId:         SEPOLIA_CHAIN_ID_HEX,
+              chainName:       'Sepolia Testnet',
+              nativeCurrency:  { name: 'SepoliaETH', symbol: 'ETH', decimals: 18 },
+              rpcUrls:         ['https://rpc.sepolia.org'],
+              blockExplorerUrls: ['https://sepolia.etherscan.io'],
+            }],
+          });
+          return true;
+        } catch {
+          return false;
+        }
+      }
+      return false;
+    }
+  }, []);
 
   const connect = useCallback(async () => {
     if (!window.ethereum) {
@@ -33,22 +105,44 @@ export function useWallet() {
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       await provider.send('eth_requestAccounts', []);
-      const s = await provider.getSigner();
+
+      // Check network
+      const network = await provider.getNetwork();
+      const isCorrectChain = Number(network.chainId) === SEPOLIA_CHAIN_ID;
+      setChainOk(isCorrectChain);
+
+      if (!isCorrectChain) {
+        const switched = await switchToSepolia();
+        if (!switched) {
+          throw new Error('Please switch MetaMask to the Sepolia testnet to use LendChain.');
+        }
+        // Re-init provider after switch
+        const freshProvider = new ethers.BrowserProvider(window.ethereum);
+        const s = await freshProvider.getSigner();
+        const addr = await s.getAddress();
+        setSigner(s);
+        setAccount(addr);
+        setChainOk(true);
+        return addr;
+      }
+
+      const s    = await provider.getSigner();
       const addr = await s.getAddress();
       setSigner(s);
       setAccount(addr);
       return addr;
     } catch (err) {
       console.error('Wallet connect error:', err);
-      return null;
+      throw err; // Let callers surface the error to the user
     } finally {
       setConnecting(false);
     }
-  }, []);
+  }, [switchToSepolia]);
 
   const disconnect = useCallback(() => {
     setAccount(null);
     setSigner(null);
+    setChainOk(false);
   }, []);
 
   /** Returns a signer-connected contract instance (auto-connects if needed) */
@@ -56,29 +150,31 @@ export function useWallet() {
     if (!CONTRACT_ADDRESS) throw new Error('VITE_CONTRACT_ADDRESS not set in frontend/.env');
     let s = signer;
     if (!s) {
-      const addr = await connect();
-      if (!addr) throw new Error('Wallet not connected');
-      // Re-read signer after connect
+      await connect();
       const provider = new ethers.BrowserProvider(window.ethereum);
       s = await provider.getSigner();
       setSigner(s);
       setAccount(await s.getAddress());
     }
+    if (!chainOk) {
+      const switched = await switchToSepolia();
+      if (!switched) throw new Error('Please switch to Sepolia testnet.');
+    }
     return new ethers.Contract(CONTRACT_ADDRESS, LendingPlatformABI.abi, s);
-  }, [signer, connect]);
+  }, [signer, chainOk, connect, switchToSepolia]);
 
   // ── Contract method wrappers ──────────────────────────
 
   /**
    * Borrower: create loan on-chain
-   * @param principal      ETH to borrow (as string, e.g. "0.5")
-   * @param collateral     ETH to lock  (as string, e.g. "0.8")
-   * @param durationDays   number
+   * @param principal       ETH to borrow (as string, e.g. "0.5")
+   * @param collateral      ETH to lock  (as string, e.g. "0.8")
+   * @param durationDays    number
    * @param interestRateBps number (e.g. 1200 for 12%)
    * @returns { onChainId, txHash }
    */
   const callCreateLoan = useCallback(async (principal, collateral, durationDays, interestRateBps) => {
-    const contract = await getContract();
+    const contract      = await getContract();
     const principalWei  = ethers.parseEther(String(principal));
     const collateralWei = ethers.parseEther(String(collateral));
 
@@ -89,6 +185,7 @@ export function useWallet() {
       { value: collateralWei }
     );
     const receipt = await tx.wait();
+    if (receipt.status === 0) throw new Error('createLoan transaction reverted on-chain');
 
     // Parse LoanCreated event to get onChainId
     const iface = contract.interface;
@@ -119,12 +216,13 @@ export function useWallet() {
       { value: ethers.parseEther(String(principal)) }
     );
     const receipt = await tx.wait();
+    if (receipt.status === 0) throw new Error('fundLoan transaction reverted on-chain');
     return { txHash: receipt.hash };
   }, [getContract]);
 
   /**
    * Borrower: repay loan on-chain
-   * @param onChainId   uint256 loanId
+   * @param onChainId    uint256 loanId
    * @param totalOwedEth total ETH to send (principal + interest, as string)
    * @returns { txHash }
    */
@@ -135,17 +233,20 @@ export function useWallet() {
       { value: ethers.parseEther(String(totalOwedEth)) }
     );
     const receipt = await tx.wait();
+    if (receipt.status === 0) throw new Error('repayLoan transaction reverted on-chain');
     return { txHash: receipt.hash };
   }, [getContract]);
 
   /**
-   * Liquidate overdue loan (callable by anyone)
+   * Liquidate overdue or undercollateralised loan (callable by anyone)
+   * Maps to the renamed contract function liquidateLoanIfNeeded()
    * @returns { txHash }
    */
-  const callLiquidate = useCallback(async (onChainId) => {
+  const callLiquidateLoanIfNeeded = useCallback(async (onChainId) => {
     const contract = await getContract();
-    const tx = await contract.liquidate(Number(onChainId));
+    const tx = await contract.liquidateLoanIfNeeded(Number(onChainId));
     const receipt = await tx.wait();
+    if (receipt.status === 0) throw new Error('liquidateLoanIfNeeded transaction reverted on-chain');
     return { txHash: receipt.hash };
   }, [getContract]);
 
@@ -157,13 +258,14 @@ export function useWallet() {
     const contract = await getContract();
     const tx = await contract.cancelLoan(Number(onChainId));
     const receipt = await tx.wait();
+    if (receipt.status === 0) throw new Error('cancelLoan transaction reverted on-chain');
     return { txHash: receipt.hash };
   }, [getContract]);
 
   return {
-    account, connecting, signer,
-    connect, disconnect, getContract,
+    account, connecting, signer, chainOk,
+    connect, disconnect, switchToSepolia, getContract,
     callCreateLoan, callFundLoan, callRepayLoan,
-    callLiquidate, callCancelLoan,
+    callLiquidateLoanIfNeeded, callCancelLoan,
   };
 }
