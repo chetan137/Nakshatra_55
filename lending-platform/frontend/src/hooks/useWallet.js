@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
 import LendingPlatformABI from '../abi/LendingPlatform.json';
-import { walletChallenge, verifyWallet } from '../api/authApi';
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || '';
 
@@ -263,26 +262,10 @@ export function useWallet() {
     return { txHash: receipt.hash };
   }, [getContract]);
 
-  /**
-   * Verify wallet ownership via signature challenge.
-   * Calls wallet-challenge endpoint, signs the message with MetaMask,
-   * then verifies signature on backend and binds wallet to user account.
-   * @returns true on success
-   */
-  const verifyWalletOwnership = useCallback(async (address) => {
-    if (!signer) throw new Error('Wallet not connected');
-    const challengeRes = await walletChallenge({ walletAddress: address });
-    const message      = challengeRes.data.message;
-    const signature    = await signer.signMessage(message);
-    await verifyWallet({ signature, message });
-    return true;
-  }, [signer]);
-
   return {
     account, connecting, signer, chainOk,
     connect, disconnect, switchToSepolia, getContract,
     callCreateLoan, callFundLoan, callRepayLoan,
     callLiquidateLoanIfNeeded, callCancelLoan,
-    verifyWalletOwnership,
   };
 }

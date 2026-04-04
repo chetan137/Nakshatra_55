@@ -53,10 +53,7 @@ router.post('/', verifyToken, async (req, res, next) => {
 
     await requireTxHash(createTxHash, 'createTxHash');
 
-    const [riskScoreVal] = await Promise.all([
-      blockchain.computeRiskScore(borrowerAddress, req.user._id),
-      User.findByIdAndUpdate(req.user._id, { walletAddress: borrowerAddress }),
-    ]);
+    const riskScoreVal = await blockchain.computeRiskScore(borrowerAddress, req.user._id);
 
     const loan = await Loan.create({
       onChainId:       onChainId ?? null,
@@ -90,7 +87,7 @@ router.get('/available', async (req, res, next) => {
 
     const [loans, total] = await Promise.all([
       Loan.find({ status: 'pending' })
-        .populate('borrower', 'name loansCompleted loansDefaulted walletAddress')
+        .populate('borrower', 'walletAddress role')
         .sort({ riskScore: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -113,8 +110,8 @@ router.get('/my', verifyToken, async (req, res, next) => {
     const loans = await Loan.find({
       $or: [{ borrower: req.user._id }, { lender: req.user._id }],
     })
-      .populate('borrower', 'name email walletAddress')
-      .populate('lender',   'name email walletAddress')
+      .populate('borrower', 'walletAddress role')
+      .populate('lender',   'walletAddress role')
       .sort({ createdAt: -1 })
       .lean({ virtuals: true });
 
@@ -201,8 +198,8 @@ router.get('/:id/owed', verifyToken, async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const loan = await Loan.findById(req.params.id)
-      .populate('borrower', 'name walletAddress')
-      .populate('lender',   'name walletAddress')
+      .populate('borrower', 'walletAddress role')
+      .populate('lender',   'walletAddress role')
       .lean({ virtuals: true });
 
     if (!loan) return res.status(404).json({ success: false, message: 'Loan not found' });
@@ -238,7 +235,7 @@ router.put('/:id/fund', verifyToken, async (req, res, next) => {
     }
 
     await requireTxHash(fundTxHash, 'fundTxHash');
-    await User.findByIdAndUpdate(req.user._id, { walletAddress: lenderAddress });
+    // walletAddress already set on the user at auth time — no update needed
 
     const startDate = new Date();
     const dueDate   = new Date(startDate.getTime() + loan.durationDays * 24 * 60 * 60 * 1000);

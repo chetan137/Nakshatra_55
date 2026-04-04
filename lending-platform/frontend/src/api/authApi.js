@@ -8,33 +8,25 @@ const API = axios.create({
 // Attach token to every request
 API.interceptors.request.use((config) => {
   const token = getToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// ── Token helpers ──
-export function saveToken(token) {
-  localStorage.setItem('lendchain_token', token);
-}
+// ── Token helpers ──────────────────────────────────────────────
+export const saveToken   = (t) => localStorage.setItem('lendchain_token', t);
+export const getToken    = ()  => localStorage.getItem('lendchain_token');
+export const removeToken = ()  => localStorage.removeItem('lendchain_token');
 
-export function getToken() {
-  return localStorage.getItem('lendchain_token');
-}
+// ── Wallet Auth API ────────────────────────────────────────────
+/** GET /api/auth/nonce/:walletAddress  → { message } */
+export const getNonce = (walletAddress) =>
+  API.get(`/auth/nonce/${walletAddress}`);
 
-export function removeToken() {
-  localStorage.removeItem('lendchain_token');
-}
+/** POST /api/auth/verify  → { isNewUser, token, role, walletAddress } */
+export const verifySignature = (data) => API.post('/auth/verify', data);
 
-// ── Auth API calls ──
-export const register = (data) => API.post('/auth/register', data);
-export const verifyEmail = (data) => API.post('/auth/verify-email', data);
-export const resendOTP = (data) => API.post('/auth/resend-otp', data);
-export const login = (data) => API.post('/auth/login', data);
-export const forgotPassword = (data) => API.post('/auth/forgot-password', data);
-export const verifyResetOTP = (data) => API.post('/auth/verify-reset-otp', data);
-export const resetPassword = (data) => API.post('/auth/reset-password', data);
+/** POST /api/auth/select-role  → { token, role, walletAddress } */
+export const selectRole = (data) => API.post('/auth/select-role', data);
+
+/** GET /api/auth/me  → { user } */
 export const getMe = () => API.get('/auth/me');
-export const walletChallenge = (data) => API.post('/auth/wallet-challenge', data);
-export const verifyWallet = (data) => API.post('/auth/verify-wallet', data);
