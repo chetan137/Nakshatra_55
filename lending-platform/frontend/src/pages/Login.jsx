@@ -294,18 +294,7 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="auth-split-features">
-              {[
-                { dot: '#f5d5c8', text: 'Non-custodial — you hold your keys' },
-                { dot: '#b3e0d8', text: 'Smart contract collateral, always' },
-                { dot: '#c4803a', text: 'Get funded in minutes, not days' },
-              ].map(f => (
-                <div key={f.text} className="auth-split-feature">
-                  <span className="auth-split-feature-dot" style={{ background: f.dot }} />
-                  {f.text}
-                </div>
-              ))}
-            </div>
+            
 
             <div className="auth-split-trust">
               <div className="auth-split-trust-icon">🔒</div>
