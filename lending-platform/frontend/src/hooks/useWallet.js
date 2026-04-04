@@ -5,7 +5,7 @@ import LendingPlatformABI from '../abi/LendingPlatform.json';
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || '';
 
 // Sepolia chain ID (hex and decimal)
-const SEPOLIA_CHAIN_ID     = 11155111;
+const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_CHAIN_ID_HEX = '0xaa36a7';
 
 /**
@@ -26,10 +26,10 @@ const SEPOLIA_CHAIN_ID_HEX = '0xaa36a7';
  *  callCancelLoan(onChainId)
  */
 export function useWallet() {
-  const [account,    setAccount]    = useState(null);
+  const [account, setAccount] = useState(null);
   const [connecting, setConnecting] = useState(false);
-  const [signer,     setSigner]     = useState(null);
-  const [chainOk,    setChainOk]    = useState(false);
+  const [signer, setSigner] = useState(null);
+  const [chainOk, setChainOk] = useState(false);
 
   // ── Listen for MetaMask account / chain changes ─────────
   useEffect(() => {
@@ -46,7 +46,7 @@ export function useWallet() {
         const provider = new ethers.BrowserProvider(window.ethereum);
         provider.getSigner().then(s => {
           setSigner(s);
-        }).catch(() => {});
+        }).catch(() => { });
       }
     };
 
@@ -56,11 +56,11 @@ export function useWallet() {
     };
 
     window.ethereum.on('accountsChanged', handleAccountsChanged);
-    window.ethereum.on('chainChanged',    handleChainChanged);
+    window.ethereum.on('chainChanged', handleChainChanged);
 
     return () => {
       window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-      window.ethereum.removeListener('chainChanged',    handleChainChanged);
+      window.ethereum.removeListener('chainChanged', handleChainChanged);
     };
   }, []);
 
@@ -80,10 +80,10 @@ export function useWallet() {
           await window.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
-              chainId:         SEPOLIA_CHAIN_ID_HEX,
-              chainName:       'Sepolia Testnet',
-              nativeCurrency:  { name: 'SepoliaETH', symbol: 'ETH', decimals: 18 },
-              rpcUrls:         ['https://rpc.sepolia.org'],
+              chainId: SEPOLIA_CHAIN_ID_HEX,
+              chainName: 'Sepolia Testnet',
+              nativeCurrency: { name: 'SepoliaETH', symbol: 'ETH', decimals: 18 },
+              rpcUrls: ['https://rpc.sepolia.org'],
               blockExplorerUrls: ['https://sepolia.etherscan.io'],
             }],
           });
@@ -126,7 +126,7 @@ export function useWallet() {
         return addr;
       }
 
-      const s    = await provider.getSigner();
+      const s = await provider.getSigner();
       const addr = await s.getAddress();
       setSigner(s);
       setAccount(addr);
@@ -174,8 +174,8 @@ export function useWallet() {
    * @returns { onChainId, txHash }
    */
   const callCreateLoan = useCallback(async (principal, collateral, durationDays, interestRateBps) => {
-    const contract      = await getContract();
-    const principalWei  = ethers.parseEther(String(principal));
+    const contract = await getContract();
+    const principalWei = ethers.parseEther(String(principal));
     const collateralWei = ethers.parseEther(String(collateral));
 
     const tx = await contract.createLoan(
