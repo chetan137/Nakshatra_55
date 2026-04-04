@@ -26,10 +26,10 @@ function usd(eth, price) {
 }
 
 function LoanCard({ loan, onFund, ethPrice }) {
-  const riskLevel  = getRiskLevel(loan.riskScore);
+  const riskLevel = getRiskLevel(loan.riskScore);
   const interestPct = (loan.interestRateBps / 100).toFixed(1);
-  const ratio       = loan.collateralRatio || ((loan.collateral / loan.principal) * 100).toFixed(0);
-  const profit      = loan.principal * loan.interestRateBps / 10000 * loan.durationDays / 365;
+  const ratio = loan.collateralRatio || ((loan.collateral / loan.principal) * 100).toFixed(0);
+  const profit = loan.principal * loan.interestRateBps / 10000 * loan.durationDays / 365;
 
   return (
     <div className="card" style={{ position: 'relative', overflow: 'hidden' }}>
@@ -53,7 +53,7 @@ function LoanCard({ loan, onFund, ethPrice }) {
         </div>
         <div style={{ flex: 1 }}>
           <p style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>
-            {loan.borrower?.name || 'Borrower'} 
+            {loan.borrower?.name || 'Borrower'}
             <span style={{ fontSize: 10, color: '#8a7e80', background: '#f5e8e5', padding: '2px 6px', borderRadius: 4, marginLeft: 6 }}>Borrower</span>
           </p>
           <p style={{ fontSize: 12, color: '#8a7e80', margin: '2px 0 0', fontFamily: 'monospace' }}>
@@ -74,15 +74,15 @@ function LoanCard({ loan, onFund, ethPrice }) {
               {loan.guarantorAddress?.slice(0, 6)}…{loan.guarantorAddress?.slice(-4)}
             </span>
           </div>
-          
+
           {loan.guarantorRequest.documentUrl ? (
             <a href={loan.guarantorRequest.documentUrl} target="_blank" rel="noreferrer" style={{
               display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#60180b', fontWeight: 600,
               textDecoration: 'none', background: 'white', padding: '6px 10px', borderRadius: 6, width: 'fit-content',
               border: '1px solid rgba(96,24,11,0.2)', transition: 'border 0.2s',
             }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = '#60180b'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(96,24,11,0.2)'}
+              onMouseEnter={e => e.currentTarget.style.borderColor = '#60180b'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(96,24,11,0.2)'}
             >
               📄 View Verifiable Document
             </a>
@@ -103,9 +103,6 @@ function LoanCard({ loan, onFund, ethPrice }) {
         <Stat icon={<Shield size={14} color="#00373f" />} label="Collateral"
           value={`${loan.collateral} ETH`}
           sub={usd(loan.collateral, ethPrice)} />
-        <Stat icon={<div style={{ fontSize: 12 }}>%</div>} label="Collateral Ratio"
-          value={`${Number(ratio).toFixed(0)}%`}
-          color={Number(ratio) >= 150 ? '#00373f' : '#ba1a1a'} />
         <Stat icon={<Clock size={14} color="#c4803a" />} label="Duration"
           value={`${loan.durationDays} days`} />
       </div>
@@ -172,7 +169,7 @@ function FundModal({ loan, wallet, onClose, onSuccess, ethPrice }) {
   const navigate = useNavigate();
 
   const interestPct = (loan.interestRateBps / 100).toFixed(1);
-  const profit      = loan.principal * loan.interestRateBps / 10000 * loan.durationDays / 365;
+  const profit = loan.principal * loan.interestRateBps / 10000 * loan.durationDays / 365;
   const totalReturn = Number(loan.principal) + profit;
 
   async function handleFund() {
@@ -199,10 +196,10 @@ function FundModal({ loan, wallet, onClose, onSuccess, ethPrice }) {
   }
 
   const rows = [
-    ['You send',                    `${loan.principal} ETH`,          usd(loan.principal, ethPrice),  '#60180b'],
-    ['Borrower gets',               `${loan.principal} ETH`,          usd(loan.principal, ethPrice),  '#342f30'],
-    [`Interest (${interestPct}%/yr)`, `~${profit.toFixed(6)} ETH`,    usd(profit, ethPrice),          '#00373f'],
-    ['You receive back',            `~${totalReturn.toFixed(6)} ETH`, usd(totalReturn, ethPrice),     '#00373f'],
+    ['You send', `${loan.principal} ETH`, usd(loan.principal, ethPrice), '#60180b'],
+    ['Borrower gets', `${loan.principal} ETH`, usd(loan.principal, ethPrice), '#342f30'],
+    [`Interest (${interestPct}%/yr)`, `~${profit.toFixed(6)} ETH`, usd(profit, ethPrice), '#00373f'],
+    ['You receive back', `~${totalReturn.toFixed(6)} ETH`, usd(totalReturn, ethPrice), '#00373f'],
   ];
 
   return (
@@ -244,12 +241,12 @@ function FundModal({ loan, wallet, onClose, onSuccess, ethPrice }) {
 
 // ── Main component ─────────────────────────────────────
 export default function Lend() {
-  const navigate   = useNavigate();
-  const { user }   = useAuth();
-  const wallet     = useWallet();
-  const [loans,    setLoans]    = useState([]);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const wallet = useWallet();
+  const [loans, setLoans] = useState([]);
   const [selected, setSelected] = useState(null);
-  const [loading,  setLoading]  = useState(true);
+  const [loading, setLoading] = useState(true);
   const [ethPrice, setEthPrice] = useState(null);
 
   useEffect(() => {
@@ -263,7 +260,7 @@ export default function Lend() {
     fetch(`${API_BASE}/api/eth-price`)
       .then(r => r.json())
       .then(d => { if (d.success) setEthPrice(d.usd); })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   async function fetchLoans() {
@@ -312,7 +309,7 @@ export default function Lend() {
 
         {loading ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 24 }}>
-            {[1,2,3].map(i => (
+            {[1, 2, 3].map(i => (
               <div key={i} className="skeleton" style={{ height: 380, borderRadius: 20 }} />
             ))}
           </div>
