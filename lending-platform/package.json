@@ -1,0 +1,10 @@
+{
+  "name": "lending-platform-monorepo",
+  "version": "1.0.0",
+  "description": "Monorepo for the blockchain lending platform",
+  "scripts": {
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:blockchain": "cd blockchain && npx hardhat node"
+  }
+}
