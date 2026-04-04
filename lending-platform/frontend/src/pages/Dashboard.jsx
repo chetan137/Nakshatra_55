@@ -1,19 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Wallet, Shield, LogOut, ChevronRight,
+  Wallet, Mail, Shield, ShieldCheck, LogOut, ChevronRight,
   TrendingUp, TrendingDown, Clock, CheckCircle,
-  DollarSign, Activity, History, Plus,
+  DollarSign, Activity, History, Plus, Lock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../hooks/useWallet';
+import { useZkProof } from '../hooks/useZkProof';
 import { getMyStats } from '../api/loanApi';
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate         = useNavigate();
   const wallet           = useWallet();
+  const { zkStatus, checkStatus } = useZkProof();
   const [stats,   setStats]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeNav, setActiveNav] = useState('dashboard');
@@ -23,7 +25,8 @@ export default function Dashboard() {
       .then(r => setStats(r.data.stats))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+    if (token) checkStatus(token);
+  }, [token, checkStatus]);
 
   function handleLogout() {
     logout();
@@ -38,11 +41,19 @@ export default function Dashboard() {
 
   if (!user) return null;
 
+  const isZkVerified = user?.zkVerified || zkStatus?.verified;
+
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <Activity size={18} />, action: () => setActiveNav('dashboard') },
     ...(user.role === 'borrower' ? [{ id: 'borrow', label: 'Borrow', icon: <TrendingDown size={18} />, action: () => navigate('/borrow') }] : []),
     ...(user.role === 'lender' ? [{ id: 'lend', label: 'Lend', icon: <TrendingUp size={18} />, action: () => navigate('/lend') }] : []),
     { id: 'history',   label: 'History',   icon: <History size={18} />,      action: () => navigate('/history') },
+    {
+      id: 'zk-verify',
+      label: isZkVerified ? 'ZK Verified ✓' : 'ZK Verify',
+      icon: isZkVerified ? <ShieldCheck size={18} /> : <Shield size={18} />,
+      action: () => navigate('/zk-verify'),
+    },
   ];
 
   return (
@@ -156,6 +167,57 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* ── ZK Verification Banner ── */}
+        {(() => {
+          const isZkVerified = user?.zkVerified || zkStatus?.verified;
+          return (
+            <div style={{
+              background: isZkVerified
+                ? 'linear-gradient(135deg, rgba(0,55,63,0.08), rgba(0,55,63,0.04))'
+                : 'linear-gradient(135deg, rgba(196,128,58,0.10), rgba(96,24,11,0.06))',
+              border: `1px solid ${isZkVerified ? 'rgba(0,55,63,0.25)' : 'rgba(196,128,58,0.35)'}`,
+              borderRadius: 14, padding: '18px 24px', marginBottom: 24,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              flexWrap: 'wrap', gap: 12,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {isZkVerified
+                  ? <ShieldCheck size={28} color="#00373f" />
+                  : <Shield size={28} color="#c4803a" />
+                }
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 15, color: '#342f30', marginBottom: 2 }}>
+                    {isZkVerified ? 'Anonymous Identity: Verified ✓' : 'Anonymous Identity: Not Verified'}
+                  </p>
+                  <p style={{ fontSize: 13, color: '#8a7e80' }}>
+                    {isZkVerified
+                      ? `ZK proof active · ${zkStatus?.attestation?.countryCode || 'IN'} · Income & ID attested · Your name stays hidden`
+                      : 'Complete ZK verification to borrow. No documents uploaded — powered by Reclaim Protocol (zkTLS).'}
+                  </p>
+                </div>
+              </div>
+              {!isZkVerified && (
+                <button
+                  className="btn"
+                  style={{ background: '#60180b', color: 'white', fontSize: 13, whiteSpace: 'nowrap' }}
+                  onClick={() => navigate('/zk-verify')}
+                >
+                  <Lock size={14} style={{ marginRight: 6 }} />
+                  Verify Anonymously
+                </button>
+              )}
+              {isZkVerified && (
+                <span style={{
+                  fontSize: 12, color: '#00373f', fontWeight: 700,
+                  background: 'rgba(0,55,63,0.12)', borderRadius: 8, padding: '4px 12px',
+                }}>
+                  Active
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Profile + Wallet ── */}
         <div className="dash-grid">

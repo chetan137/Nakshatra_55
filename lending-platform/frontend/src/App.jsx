@@ -4,12 +4,13 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import CrushReveal from './components/CrushReveal';
 
-import Landing     from './pages/Landing';
-import Login       from './pages/Login';      // wallet-auth: connect + role selection
-import Dashboard   from './pages/Dashboard';
-import Borrow      from './pages/Borrow';
-import Lend        from './pages/Lend';
-import LoanHistory from './pages/LoanHistory';
+import Landing        from './pages/Landing';
+import Login          from './pages/Login';      // wallet-auth: connect + role selection
+import Dashboard      from './pages/Dashboard';
+import Borrow         from './pages/Borrow';
+import Lend           from './pages/Lend';
+import LoanHistory    from './pages/LoanHistory';
+import ZkVerification from './pages/ZkVerification';
 
 function App() {
   return (
@@ -20,7 +21,7 @@ function App() {
           <Route path="/"      element={<CrushReveal><Landing /></CrushReveal>} />
 
           {/* Wallet auth — single entry point for connect + role selection */}
-          <Route path="/login"  element={<Login />} />
+          <Route path="/login"    element={<Login />} />
           {/* Legacy aliases so old links don't 404 */}
           <Route path="/register" element={<Navigate to="/login" replace />} />
 
@@ -29,6 +30,7 @@ function App() {
           <Route path="/borrow"    element={<ProtectedRoute><Borrow /></ProtectedRoute>} />
           <Route path="/lend"      element={<ProtectedRoute><Lend /></ProtectedRoute>} />
           <Route path="/history"   element={<ProtectedRoute><LoanHistory /></ProtectedRoute>} />
+          <Route path="/zk-verify" element={<ProtectedRoute><ZkVerification /></ProtectedRoute>} />
 
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />

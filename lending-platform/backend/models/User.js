@@ -3,12 +3,12 @@ const crypto   = require('crypto');
 
 const userSchema = new mongoose.Schema({
   walletAddress: {
-    type:     String,
-    required: [true, 'Wallet address is required'],
-    unique:   true,
+    type:      String,
+    required:  [true, 'Wallet address is required'],
+    unique:    true,
     lowercase: true,
-    trim:     true,
-    match:    [/^0x[0-9a-f]{40}$/, 'Invalid Ethereum address'],
+    trim:      true,
+    match:     [/^0x[0-9a-f]{40}$/, 'Invalid Ethereum address'],
   },
   nonce: {
     type:    String,
@@ -17,7 +17,7 @@ const userSchema = new mongoose.Schema({
   role: {
     type:    String,
     enum:    ['borrower', 'lender'],
-    default: null,            // null until user explicitly picks
+    default: null,  // null until user explicitly picks
   },
   createdAt: {
     type:    Date,
@@ -25,6 +25,23 @@ const userSchema = new mongoose.Schema({
   },
   lastLogin: {
     type:    Date,
+    default: null,
+  },
+
+  // ── ZK Anonymous Verification ─────────────────────────────
+  // True once user completes Reclaim/zkPass proof flow.
+  // PII never stored here — see ZkProof model for encrypted backup.
+  zkVerified: {
+    type:    Boolean,
+    default: false,
+  },
+  zkVerifiedAt: {
+    type:    Date,
+    default: null,
+  },
+  // The on-chain proof hash — publicly verifiable, no PII
+  zkProofHash: {
+    type:    String,
     default: null,
   },
 });
