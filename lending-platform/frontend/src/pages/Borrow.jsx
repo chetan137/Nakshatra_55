@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wallet, DollarSign, Clock, Percent, AlertTriangle, CheckCircle, Info, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Wallet, DollarSign, Clock, Percent, AlertTriangle, CheckCircle, Info, RefreshCw, Shield, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useWallet } from '../hooks/useWallet';
+import { useZkProof } from '../hooks/useZkProof';
 import { createLoan } from '../api/loanApi';
 import { useAuth } from '../context/AuthContext';
 
@@ -10,8 +11,10 @@ const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').r
 
 export default function Borrow() {
   const navigate   = useNavigate();
-  const { user }   = useAuth();
+  const { user, token }   = useAuth();
   const wallet     = useWallet();
+  const { checkStatus, zkStatus } = useZkProof();
+  const [zkChecked, setZkChecked] = useState(false);
 
   useEffect(() => {
     if (user?.role === 'lender') {
@@ -19,6 +22,13 @@ export default function Borrow() {
       navigate('/dashboard', { replace: true });
     }
   }, [user, navigate]);
+
+  // Check ZK verification status on mount
+  useEffect(() => {
+    if (token && !zkChecked) {
+      checkStatus(token).finally(() => setZkChecked(true));
+    }
+  }, [token, zkChecked, checkStatus]);
 
   const [ethPrice,    setEthPrice]    = useState(null);
   const [priceLoading, setPriceLoading] = useState(true);
@@ -129,6 +139,53 @@ export default function Borrow() {
     } finally {
       setLoading(false);
     }
+  }
+
+  const zkVerified = user?.zkVerified || zkStatus?.verified;
+
+  // ZK gate: show prompt if not verified yet
+  if (zkChecked && !zkVerified) {
+    return (
+      <div className="page-auth" style={{ background: 'linear-gradient(135deg, #342f30 0%, #60180b 50%, #342f30 100%)' }}>
+        <div className="auth-card" style={{ maxWidth: 480, textAlign: 'center' }}>
+          <Shield size={52} color="#815249" style={{ marginBottom: 16 }} />
+          <h2 className="auth-title" style={{ marginBottom: 10 }}>Identity Verification Required</h2>
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 15, marginBottom: 24, lineHeight: 1.6 }}>
+            LendChain uses <strong style={{ color: '#FF8C69' }}>Zero-Knowledge Proofs</strong> to verify borrowers
+            anonymously. Complete a 30-second ZK check — no documents uploaded, no PII stored.
+          </p>
+          <div style={{
+            background: 'rgba(255,255,255,0.07)', borderRadius: 12,
+            padding: '14px 16px', marginBottom: 24, textAlign: 'left',
+          }}>
+            {[
+              '✓ Your name stays hidden from lenders',
+              '✓ No documents uploaded to any server',
+              '✓ Identity revealed only if you default',
+              '✓ Powered by Reclaim Protocol (zkTLS)',
+            ].map((line, i) => (
+              <p key={i} style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', padding: '4px 0' }}>{line}</p>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              className="btn btn-primary auth-submit"
+              style={{ flex: 2 }}
+              onClick={() => navigate('/zk-verify')}
+            >
+              <ShieldCheck size={18} /> Verify Anonymously
+            </button>
+            <button
+              className="btn btn-ghost"
+              style={{ flex: 1, color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.2)' }}
+              onClick={() => navigate('/dashboard')}
+            >
+              <ArrowLeft size={16} /> Back
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

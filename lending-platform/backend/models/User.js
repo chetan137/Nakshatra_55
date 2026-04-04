@@ -73,6 +73,23 @@ const userSchema = new mongoose.Schema({
   pendingWallet: {
     type: String,
   },
+
+  // ── ZK Anonymous Verification ─────────────────────────────
+  // True once user completes Reclaim/zkPass proof flow.
+  // PII never stored here — see ZkProof model for encrypted backup.
+  zkVerified: {
+    type: Boolean,
+    default: false,
+  },
+  zkVerifiedAt: {
+    type: Date,
+    default: null,
+  },
+  // The on-chain proof hash — publicly verifiable, no PII
+  zkProofHash: {
+    type: String,
+    default: null,
+  },
 });
 
 module.exports = mongoose.model('User', userSchema);
