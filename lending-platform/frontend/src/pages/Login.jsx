@@ -113,7 +113,11 @@ export default function Login() {
             {step === 'connect' && (
               <>
                 <div className="auth-header">
-                  <div className="auth-icon-wrap" style={{ fontSize: 28 }}>🦊</div>
+                  <div className="auth-icon-wrap" style={{ padding: 0, overflow: 'hidden', borderRadius: '50%', width: 100,height: 100}}>
+                    <video autoPlay loop muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}>
+                      <source src="/login.mp4" type="video/mp4" />
+                    </video>
+                  </div>
                   <h1 className="auth-title">Sign In</h1>
                   <p className="auth-subtitle">
                     Connect your MetaMask wallet to access Go Secure.
@@ -280,7 +284,7 @@ export default function Login() {
                 }
               </h2>
               <p>
-                Borrow against crypto collateral or earn competitive yields—
+                Borrow and earn competitive yields—
                 all secured by smart contracts, no middlemen.
               </p>
               <div className="auth-split-stats">
@@ -305,7 +309,7 @@ export default function Login() {
 
             <div className="auth-split-trust">
               <div className="auth-split-trust-icon">🔒</div>
-              <p><strong>Bank-grade Security</strong>Audited smart contracts, no custodial risk</p>
+
             </div>
           </div>
         </div>
