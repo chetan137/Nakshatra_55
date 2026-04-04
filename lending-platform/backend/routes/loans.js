@@ -33,11 +33,11 @@ async function requireTxHash(txHash, label) {
 router.post('/', verifyToken, async (req, res, next) => {
   try {
     const {
-      onChainId, principal,
+      principal,
       collateral = 0,
       interestRateBps, durationDays,
-      borrowerAddress, createTxHash,
-      guarantorRequestId,
+      borrowerAddress,
+      guarantorAddress,   // inline wallet address from Borrow form
       loanType = 'guarantor',
     } = req.body;
 
@@ -45,41 +45,48 @@ router.post('/', verifyToken, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
-    // ── Guarantor-backed (non-collateral) loan ────────────────────────
-    const Guarantor = require('../models/Guarantor');
-    if (!guarantorRequestId) {
-      return res.status(400).json({
-        success: false,
-        message: 'A guarantor is required. Please get a guarantor approved before creating a loan.',
-      });
+    // ── Guarantor address is required ─────────────────────────
+    if (!guarantorAddress) {
+      return res.status(400).json({ success: false, message: 'guarantorAddress is required for non-collateral loans' });
     }
-    const gRecord = await Guarantor.findById(guarantorRequestId)
-      .populate('guarantor', 'name walletAddress');
-    if (!gRecord) {
-      return res.status(404).json({ success: false, message: 'Guarantor request not found' });
-    }
-    if (String(gRecord.borrower) !== String(req.user._id)) {
-      return res.status(403).json({ success: false, message: 'This guarantor request does not belong to you' });
-    }
-    if (gRecord.status !== 'approved') {
-      return res.status(400).json({
-        success: false,
-        message: `Guarantor request is ${gRecord.status}. Wait for the guarantor to approve your request.`,
-      });
-    }
-    if (gRecord.loan) {
-      return res.status(400).json({ success: false, message: 'This guarantor approval is already linked to another loan.' });
+    const normGuarantor = guarantorAddress.trim().toLowerCase();
+    if (normGuarantor === borrowerAddress.trim().toLowerCase()) {
+      return res.status(400).json({ success: false, message: 'You cannot be your own guarantor' });
     }
 
-    await requireTxHash(createTxHash, 'createTxHash');
+    const Guarantor = require('../models/Guarantor');
+
+    // Resolve guarantor User (they don't need to be registered — we store address only)
+    const guarantorUser = await require('../models/User').findOne({ walletAddress: normGuarantor }).lean();
+
+    // Check for an existing pending/approved pre-approval between this borrower + guarantor
+    const existing = await Guarantor.findOne({
+      borrower: req.user._id,
+      guarantorAddress: normGuarantor,
+      loan: null,
+      status: { $in: ['pending', 'approved'] },
+    });
+
+    let gRecord = existing;
+    if (!gRecord) {
+      // Auto-create a new Guarantor request (status: pending)
+      gRecord = await Guarantor.create({
+        borrower:          req.user._id,
+        borrowerAddress:   borrowerAddress.trim().toLowerCase(),
+        guarantor:         guarantorUser?._id || null,
+        guarantorAddress:  normGuarantor,
+        guaranteeAmountEth: Number(principal),  // liability = loan principal
+        status:            'pending',
+      });
+    }
 
     const riskScoreVal = await blockchain.computeRiskScore(borrowerAddress, req.user._id);
 
     const loan = await Loan.create({
-      onChainId:        onChainId   ?? null,
-      createTxHash:     createTxHash || null,
+      onChainId:        null,
+      createTxHash:     null,
       borrower:         req.user._id,
-      borrowerAddress,
+      borrowerAddress:  borrowerAddress.trim().toLowerCase(),
       principal:        Number(principal),
       collateral:       0,
       interestRateBps:  Number(interestRateBps),
@@ -88,11 +95,11 @@ router.post('/', verifyToken, async (req, res, next) => {
       status:           'pending',
       loanType:         'guarantor',
       guarantorRequest: gRecord._id,
-      guarantorAddress: gRecord.guarantorAddress,
-      guarantorStatus:  'approved',
+      guarantorAddress: normGuarantor,
+      guarantorStatus:  'pending',   // awaiting guarantor approval
     });
 
-    // Link the guarantor record back to this loan
+    // Link guarantor record to this loan
     await Guarantor.findByIdAndUpdate(gRecord._id, { loan: loan._id });
 
     res.status(201).json({ success: true, loan });
