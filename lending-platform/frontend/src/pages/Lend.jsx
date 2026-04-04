@@ -53,7 +53,7 @@ function LoanCard({ loan, onFund, ethPrice }) {
         </div>
         <div style={{ flex: 1 }}>
           <p style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>
-            {loan.borrower?.name || 'Borrower'} 
+            {loan.borrower?.name || 'Borrower'}
             <span style={{ fontSize: 10, color: '#8a7e80', background: '#f5e8e5', padding: '2px 6px', borderRadius: 4, marginLeft: 6 }}>Borrower</span>
           </p>
           <p style={{ fontSize: 12, color: '#8a7e80', margin: '2px 0 0', fontFamily: 'monospace' }}>
@@ -74,7 +74,7 @@ function LoanCard({ loan, onFund, ethPrice }) {
               {loan.guarantorAddress?.slice(0, 6)}…{loan.guarantorAddress?.slice(-4)}
             </span>
           </div>
-          
+
           {loan.guarantorRequest.documentUrl ? (
             <a href={loan.guarantorRequest.documentUrl} target="_blank" rel="noreferrer" style={{
               display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#60180b', fontWeight: 600,
@@ -103,9 +103,7 @@ function LoanCard({ loan, onFund, ethPrice }) {
         <Stat icon={<Shield size={14} color="#00373f" />} label="Collateral"
           value={`${loan.collateral} ETH`}
           sub={usd(loan.collateral, ethPrice)} />
-        <Stat icon={<div style={{ fontSize: 12 }}>%</div>} label="Collateral Ratio"
-          value={`${Number(ratio).toFixed(0)}%`}
-          color={Number(ratio) >= 150 ? '#00373f' : '#ba1a1a'} />
+        
         <Stat icon={<Clock size={14} color="#c4803a" />} label="Duration"
           value={`${loan.durationDays} days`} />
       </div>
