@@ -93,9 +93,11 @@ async function sendOTPEmail(email, name, otp, type = 'verify') {
       ? 'Verify your LendChain account'
       : 'Reset your LendChain password';
 
-  console.log(`\n========================================`);
-  console.log(`🔑 DEV MODE OTP FOR ${email}: ${otp}`);
-  console.log(`========================================\n`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`\n========================================`);
+    console.log(`🔑 DEV MODE OTP FOR ${email}: ${otp}`);
+    console.log(`========================================\n`);
+  }
 
   const payload = {
     sender: {
@@ -121,7 +123,11 @@ async function sendOTPEmail(email, name, otp, type = 'verify') {
     if (!response.ok) {
       const errBody = await response.text();
       console.error('[EmailService] Brevo API error:', response.status, errBody);
-      console.warn(`[WARNING] Failed to send OTP through Brevo. You can still use the OTP printed above to verify during testing.`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[WARNING] Failed to send OTP through Brevo. Check OTP printed above (dev only).`);
+      } else {
+        console.error('[EmailService] Failed to send OTP email. Check BREVO_API_KEY and BREVO_SENDER_EMAIL.');
+      }
       return; // Fail gracefully instead of crashing registration
     }
 
@@ -129,7 +135,9 @@ async function sendOTPEmail(email, name, otp, type = 'verify') {
     console.log(`[EmailService] ${type} OTP sent to ${email} — messageId: ${data.messageId}`);
   } catch (error) {
     console.error('[EmailService] Failed to execute email fetch:', error.message);
-    console.warn(`[WARNING] Network or config issue sending email. You can still use the OTP printed above.`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[WARNING] Network or config issue sending email. Check OTP printed above (dev only).`);
+    }
     // Do not throw an error here, so the backend still returns 201 to frontend and doesn't crash the flow
   }
 }

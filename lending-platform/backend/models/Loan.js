@@ -63,6 +63,13 @@ const loanSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
+// ── Indexes for common query patterns ───────────────────
+loanSchema.index({ status: 1, createdAt: -1 });          // available loans list
+loanSchema.index({ borrower: 1, createdAt: -1 });        // my loans (as borrower)
+loanSchema.index({ lender: 1, createdAt: -1 });          // my loans (as lender)
+loanSchema.index({ onChainId: 1 }, { sparse: true });    // on-chain lookup
+loanSchema.index({ riskScore: -1, createdAt: -1 });      // sorted marketplace
+
 // ── Computed helpers ────────────────────────────────
 loanSchema.virtual('collateralRatio').get(function () {
   return this.principal > 0

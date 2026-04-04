@@ -28,6 +28,9 @@ export const getMyStats   = ()     => API.get('/loans/stats');
 // GET single loan
 export const getLoan      = (id)   => API.get(`/loans/${id}`);
 
+// GET live repayment amount (principal + accrued interest from chain)
+export const getLoanOwed  = (id)   => API.get(`/loans/${id}/owed`);
+
 // PUT after calling fundLoan() on-chain
 export const fundLoan     = (id, data)      => API.put(`/loans/${id}/fund`, data);
 

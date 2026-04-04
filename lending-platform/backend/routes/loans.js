@@ -6,6 +6,23 @@ const blockchain = require('../services/blockchainService');
 
 const router = express.Router();
 
+// Verify a tx hash if provided; throw with 400 status if invalid.
+// In production, hash is always required.
+async function requireTxHash(txHash, label) {
+  if (txHash) {
+    const valid = await blockchain.verifyTx(txHash);
+    if (!valid) {
+      const err = new Error(`${label} not found or failed on-chain`);
+      err.status = 400;
+      throw err;
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    const err = new Error(`${label} is required`);
+    err.status = 400;
+    throw err;
+  }
+}
+
 // ─────────────────────────────────────────────────────────
 // POST /api/loans
 // Borrower registers a new loan AFTER calling createLoan()
@@ -21,27 +38,29 @@ router.post('/', verifyToken, async (req, res, next) => {
       borrowerAddress, createTxHash,
     } = req.body;
 
-    // Basic validation
     if (!principal || !collateral || !interestRateBps || !durationDays || !borrowerAddress) {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
-    if (collateral / principal < 1.5) {
+    // Validate collateral ratio (values are ETH floats from frontend)
+    const ratio = Number(collateral) / Number(principal);
+    if (ratio < 1.5) {
       return res.status(400).json({
         success: false,
-        message: `Collateral ratio is ${(collateral / principal * 100).toFixed(0)}% — must be ≥ 150%`,
+        message: `Collateral ratio is ${(ratio * 100).toFixed(0)}% — must be ≥ 150%`,
       });
     }
 
-    // Calculate risk score from on-chain history
-    const riskScoreVal = await blockchain.getRiskScore(borrowerAddress);
+    await requireTxHash(createTxHash, 'createTxHash');
 
-    // Update user's wallet address if changed
-    await User.findByIdAndUpdate(req.user._id, { walletAddress: borrowerAddress });
+    const [riskScoreVal] = await Promise.all([
+      blockchain.getRiskScore(borrowerAddress),
+      User.findByIdAndUpdate(req.user._id, { walletAddress: borrowerAddress }),
+    ]);
 
     const loan = await Loan.create({
-      onChainId: onChainId ?? null,
-      createTxHash: createTxHash || null,
+      onChainId:       onChainId ?? null,
+      createTxHash:    createTxHash || null,
       borrower:        req.user._id,
       borrowerAddress,
       principal:       Number(principal),
@@ -60,16 +79,26 @@ router.post('/', verifyToken, async (req, res, next) => {
 
 // ─────────────────────────────────────────────────────────
 // GET /api/loans/available
-// Public — all pending loans for lender browsing
+// Public — all pending loans for lender browsing (paginated)
+// Query: ?page=1&limit=20
 // ─────────────────────────────────────────────────────────
 router.get('/available', async (req, res, next) => {
   try {
-    const loans = await Loan.find({ status: 'pending' })
-      .populate('borrower', 'name loansCompleted loansDefaulted walletAddress')
-      .sort({ riskScore: -1, createdAt: -1 })
-      .lean({ virtuals: true });
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(50, parseInt(req.query.limit) || 20);
+    const skip  = (page - 1) * limit;
 
-    res.json({ success: true, loans });
+    const [loans, total] = await Promise.all([
+      Loan.find({ status: 'pending' })
+        .populate('borrower', 'name loansCompleted loansDefaulted walletAddress')
+        .sort({ riskScore: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean({ virtuals: true }),
+      Loan.countDocuments({ status: 'pending' }),
+    ]);
+
+    res.json({ success: true, loans, page, limit, total, pages: Math.ceil(total / limit) });
   } catch (err) {
     next(err);
   }
@@ -105,11 +134,11 @@ router.get('/stats', verifyToken, async (req, res, next) => {
 
     const [borrowedLoans, lentLoans] = await Promise.all([
       Loan.find({ borrower: uid }),
-      Loan.find({ lender: uid }),
+      Loan.find({ lender:   uid }),
     ]);
 
-    const totalBorrowed = borrowedLoans.reduce((s, l) => s + (l.principal || 0), 0);
-    const totalLent     = lentLoans.reduce((s, l) => s + (l.principal || 0), 0);
+    const totalBorrowed  = borrowedLoans.reduce((s, l) => s + (l.principal || 0), 0);
+    const totalLent      = lentLoans.reduce((s, l) => s + (l.principal || 0), 0);
     const activeBorrowed = borrowedLoans.filter(l => l.status === 'active').length;
     const activeLent     = lentLoans.filter(l => l.status === 'active').length;
     const repaid         = borrowedLoans.filter(l => l.status === 'repaid').length;
@@ -131,8 +160,43 @@ router.get('/stats', verifyToken, async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────────────────
+// GET /api/loans/:id/owed
+// Auth (borrower only) — live repayment amount from chain.
+// Returns exact ETH the borrower must send right now.
+// ─────────────────────────────────────────────────────────
+router.get('/:id/owed', verifyToken, async (req, res, next) => {
+  try {
+    const loan = await Loan.findById(req.params.id);
+    if (!loan) return res.status(404).json({ success: false, message: 'Loan not found' });
+    if (loan.status !== 'active') {
+      return res.status(400).json({ success: false, message: 'Loan is not active' });
+    }
+    if (String(loan.borrower) !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Only borrower can query owed amount' });
+    }
+
+    if (loan.onChainId === null) {
+      // Fallback: calculate off-chain (less accurate — no real-time price)
+      const elapsed = (Date.now() - new Date(loan.startDate).getTime()) / 1000;
+      const interest = (loan.principal * loan.interestRateBps * elapsed) / (10000 * 365 * 24 * 3600);
+      return res.json({ success: true, totalOwedEth: (loan.principal + interest).toFixed(8), source: 'offchain' });
+    }
+
+    // Fetch live from chain (accounts for exact elapsed seconds)
+    const totalOwedEth = await blockchain.getLiveTotalOwed(loan.onChainId);
+    if (!totalOwedEth) {
+      return res.status(503).json({ success: false, message: 'Could not fetch live repayment amount from chain' });
+    }
+
+    res.json({ success: true, totalOwedEth, source: 'onchain' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─────────────────────────────────────────────────────────
 // GET /api/loans/:id
-// Public — single loan details
+// Public — single loan details (with live on-chain data)
 // ─────────────────────────────────────────────────────────
 router.get('/:id', async (req, res, next) => {
   try {
@@ -143,7 +207,6 @@ router.get('/:id', async (req, res, next) => {
 
     if (!loan) return res.status(404).json({ success: false, message: 'Loan not found' });
 
-    // Optionally fetch live on-chain data
     if (loan.onChainId !== null) {
       const onChain = await blockchain.getLoanOnChain(loan.onChainId);
       if (onChain) loan.onChain = onChain;
@@ -163,21 +226,18 @@ router.get('/:id', async (req, res, next) => {
 router.put('/:id/fund', verifyToken, async (req, res, next) => {
   try {
     const { lenderAddress, fundTxHash } = req.body;
-    const loan = await Loan.findById(req.params.id);
+    if (!lenderAddress) {
+      return res.status(400).json({ success: false, message: 'lenderAddress is required' });
+    }
 
+    const loan = await Loan.findById(req.params.id);
     if (!loan) return res.status(404).json({ success: false, message: 'Loan not found' });
     if (loan.status !== 'pending') return res.status(400).json({ success: false, message: 'Loan not pending' });
     if (String(loan.borrower) === String(req.user._id)) {
       return res.status(400).json({ success: false, message: 'Borrower cannot fund own loan' });
     }
 
-    // Optional: verify tx on blockchain
-    if (fundTxHash) {
-      const valid = await blockchain.verifyTx(fundTxHash);
-      if (!valid) return res.status(400).json({ success: false, message: 'Transaction not found on chain' });
-    }
-
-    // Update user wallet
+    await requireTxHash(fundTxHash, 'fundTxHash');
     await User.findByIdAndUpdate(req.user._id, { walletAddress: lenderAddress });
 
     const startDate = new Date();
@@ -214,6 +274,8 @@ router.put('/:id/repay', verifyToken, async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Only borrower can repay' });
     }
 
+    await requireTxHash(repayTxHash, 'repayTxHash');
+
     loan.repayTxHash = repayTxHash || null;
     loan.status      = 'repaid';
     loan.repaidAt    = new Date();
@@ -227,7 +289,8 @@ router.put('/:id/repay', verifyToken, async (req, res, next) => {
 
 // ─────────────────────────────────────────────────────────
 // PUT /api/loans/:id/liquidate
-// Auth — anyone records liquidation AFTER calling liquidate() on chain
+// Auth — anyone records liquidation AFTER calling liquidateLoanIfNeeded() on chain
+// Allows both time-overdue AND price-triggered liquidations
 // Body: { liquidateTxHash }
 // ─────────────────────────────────────────────────────────
 router.put('/:id/liquidate', verifyToken, async (req, res, next) => {
@@ -237,9 +300,24 @@ router.put('/:id/liquidate', verifyToken, async (req, res, next) => {
 
     if (!loan) return res.status(404).json({ success: false, message: 'Loan not found' });
     if (loan.status !== 'active') return res.status(400).json({ success: false, message: 'Loan not active' });
-    if (!loan.dueDate || new Date() < loan.dueDate) {
-      return res.status(400).json({ success: false, message: 'Loan not yet overdue' });
+
+    const isOverdue = loan.dueDate && new Date() > loan.dueDate;
+
+    // Check price-triggered liquidation via on-chain ratio
+    let isPriceTriggered = false;
+    if (!isOverdue && loan.onChainId !== null) {
+      const ratio = await blockchain.getCollateralRatioWithPrice(loan.onChainId);
+      isPriceTriggered = ratio !== null && ratio < 120;
     }
+
+    if (!isOverdue && !isPriceTriggered) {
+      return res.status(400).json({
+        success: false,
+        message: 'Loan is not liquidatable: not overdue and collateral ratio is above 120%',
+      });
+    }
+
+    await requireTxHash(liquidateTxHash, 'liquidateTxHash');
 
     loan.liquidateTxHash = liquidateTxHash || null;
     loan.status          = 'defaulted';

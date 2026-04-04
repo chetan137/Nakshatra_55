@@ -1,101 +1,217 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "./interfaces/AggregatorV3Interface.sol";
+import "./libraries/LoanMath.sol";
+
 /**
- * @title LendingPlatform
- * @notice Peer-to-peer lending with collateral lock, auto-liquidation logic,
- *         interest accrual, and reputation tracking.
+ * @title  LendingPlatform
+ * @author LendChain
+ * @notice Peer-to-peer ETH lending with:
+ *           • Collateral locking (minimum 150% of principal)
+ *           • Chainlink ETH/USD price-based liquidation (below 120%)
+ *           • Simple interest accrual
+ *           • Reputation tracking (completions / defaults)
+ *           • getUserLoans index for easy front-end queries
  *
- * FLOW:
- *  1. Borrower calls createLoan(duration, interestRate) + sends ETH as collateral
- *     — collateral must be >= 150% of requested loan amount
- *  2. Lender calls fundLoan(loanId) + sends ETH equal to loan.amount
- *     — borrower instantly receives the loan ETH
- *  3. Borrower calls repayLoan(loanId) + sends ETH (principal + interest)
- *     — lender receives repayment; borrower gets collateral back
- *  4. Anyone can call liquidate(loanId) after deadline if not repaid
- *     — lender gets collateral; borrower's defaultCount goes up
+ * ─── FLOW ───────────────────────────────────────────────────────────
+ *  1. Borrower calls createLoan(principal, durationDays, interestRateBps)
+ *       + sends ETH as msg.value (must be ≥ 150% of principal).
+ *       Contract holds the collateral.
+ *
+ *  2. Lender calls fundLoan(loanId)
+ *       + sends exactly loan.principal ETH.
+ *       Contract forwards the principal to the borrower immediately.
+ *       Collateral stays locked.
+ *
+ *  3a. Borrower calls repayLoan(loanId)
+ *       + sends principal + accrued interest.
+ *       Lender receives repayment; borrower gets collateral back.
+ *
+ *  3b. Anyone calls liquidateLoanIfNeeded(loanId)
+ *       • If the ETH/USD price has dropped so that collateral value
+ *         is below 120% of remaining principal → liquidate.
+ *       • Lender gets entire collateral; borrower's default count rises.
+ *       • Also triggered after dueDate (time-based default).
+ *
+ *  4.  Borrower can cancelLoan(loanId) while still Pending (not yet funded).
+ * ────────────────────────────────────────────────────────────────────
+ *
+ * CHAINLINK PRICE FEED ADDRESSES (Sepolia testnet):
+ *   ETH/USD: 0x694AA1769357215DE4FAC081bf1f309aDC325306
+ *
+ * For local Hardhat testing pass a MockV3Aggregator address instead.
  */
 contract LendingPlatform {
+    using LoanMath for uint256;
 
-    // ─────────────────────── CONSTANTS ───────────────────────
-    uint256 public constant MIN_COLLATERAL_RATIO = 150; // 150% — borrower must lock 1.5x loan amount
-    uint256 public constant PRECISION = 100;
+    // ═══════════════════════════════════════════════════════════════
+    //  CONSTANTS
+    // ═══════════════════════════════════════════════════════════════
 
-    // ─────────────────────── STRUCTS ─────────────────────────
+    /// @notice Minimum collateral ratio in percent (150 = 150%)
+    uint256 public constant MIN_COLLATERAL_RATIO  = 150;
+
+    /// @notice Liquidation threshold in percent (120 = 120%)
+    uint256 public constant LIQUIDATION_THRESHOLD = 120;
+
+    /// @notice Staleness guard — reject Chainlink data older than 1 hour
+    uint256 public constant PRICE_STALENESS_LIMIT = 1 hours;
+
+    // ═══════════════════════════════════════════════════════════════
+    //  ENUMS & STRUCTS
+    // ═══════════════════════════════════════════════════════════════
+
     enum LoanStatus { Pending, Active, Repaid, Defaulted, Cancelled }
 
+    /**
+     * @notice Complete state for one loan.
+     * @dev    Fields named to match the requested interface.
+     *
+     *  id               — auto-incrementing loan ID
+     *  borrower         — address that deposited collateral
+     *  lender           — address that funded the loan (0 while Pending)
+     *  principal        — ETH the borrower wants to receive (wei)
+     *  collateralAmount — ETH locked as insurance (wei)
+     *  interestRate     — annual rate in basis points (1200 = 12%)
+     *  startDate        — unix timestamp when lender funded
+     *  dueDate          — startDate + durationDays
+     *  repaid           — true after borrower fully repays
+     *  completed        — true after any clean close (repaid or liquidated)
+     *  defaulted        — true if closed via liquidation
+     *  durationDays     — loan term in days (stored for display/re-calc)
+     *  status           — canonical state machine value
+     */
     struct Loan {
-        uint256 id;
+        uint256    id;
         address payable borrower;
         address payable lender;
-        uint256 principal;        // ETH amount borrower wants (wei)
-        uint256 collateral;       // ETH locked as insurance (wei)
-        uint256 interestRateBps;  // Annual interest in basis points (e.g. 1200 = 12%)
-        uint256 durationDays;     // Loan duration in days
-        uint256 startTime;        // When lender funded the loan
-        uint256 dueDate;          // startTime + durationDays
+        uint256    principal;
+        uint256    collateralAmount;
+        uint256    interestRate;      // bps
+        uint256    startDate;
+        uint256    dueDate;
+        bool       repaid;
+        bool       completed;
+        bool       defaulted;
+        uint256    durationDays;
         LoanStatus status;
     }
 
-    // ─────────────────────── STATE ───────────────────────────
+    // ═══════════════════════════════════════════════════════════════
+    //  STATE
+    // ═══════════════════════════════════════════════════════════════
+
+    /// @notice Chainlink ETH/USD price feed
+    AggregatorV3Interface public immutable priceFeed;
+
+    /// @notice Auto-incrementing loan counter (also = next loanId)
     uint256 public loanCounter;
+
+    /// @notice loanId → Loan
     mapping(uint256 => Loan) public loans;
 
-    // Reputation tracking
+    /// @notice user → array of loanIds they are involved in (as borrower or lender)
+    mapping(address => uint256[]) private _userLoans;
+
+    // Reputation
     mapping(address => uint256) public loansCompleted;
     mapping(address => uint256) public loansDefaulted;
-    mapping(address => uint256) public totalLent;   // in wei
-    mapping(address => uint256) public totalBorrowed; // in wei
+    mapping(address => uint256) public totalLent;      // cumulative wei lent
+    mapping(address => uint256) public totalBorrowed;  // cumulative wei borrowed
 
-    // ─────────────────────── EVENTS ──────────────────────────
+    // ═══════════════════════════════════════════════════════════════
+    //  EVENTS
+    // ═══════════════════════════════════════════════════════════════
+
     event LoanCreated(
         uint256 indexed loanId,
         address indexed borrower,
         uint256 principal,
-        uint256 collateral,
-        uint256 interestRateBps,
+        uint256 collateralAmount,
+        uint256 interestRate,
         uint256 durationDays
     );
-    event LoanFunded(uint256 indexed loanId, address indexed lender, uint256 dueDate);
-    event LoanRepaid(uint256 indexed loanId, address indexed borrower, uint256 totalPaid);
-    event LoanLiquidated(uint256 indexed loanId, address indexed lender, uint256 collateralReceived);
+
+    event LoanFunded(
+        uint256 indexed loanId,
+        address indexed lender,
+        uint256 amount
+    );
+
+    event LoanRepaid(
+        uint256 indexed loanId,
+        address indexed borrower,
+        uint256 amountPaid
+    );
+
+    event LoanLiquidated(
+        uint256 indexed loanId,
+        uint256 collateralSoldFor,
+        bool    priceTriggered   // true = price drop, false = time overdue
+    );
+
     event LoanCancelled(uint256 indexed loanId, address indexed borrower);
 
-    // ─────────────────────── MODIFIERS ───────────────────────
+    // ═══════════════════════════════════════════════════════════════
+    //  MODIFIERS
+    // ═══════════════════════════════════════════════════════════════
+
     modifier loanExists(uint256 loanId) {
         require(loanId < loanCounter, "Loan does not exist");
         _;
     }
 
-    // ═══════════════════════════════════════════════════
-    // STEP 1 — Borrower creates loan request
-    // ═══════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
+    //  CONSTRUCTOR
+    // ═══════════════════════════════════════════════════════════════
+
     /**
-     * @param principal     How much ETH borrower wants to receive (in wei)
-     * @param durationDays  Loan duration (1–365 days)
-     * @param interestRateBps Annual rate in basis points (e.g. 1200 = 12%)
+     * @param _priceFeed  Chainlink AggregatorV3Interface address for ETH/USD.
+     *                    Sepolia: 0x694AA1769357215DE4FAC081bf1f309aDC325306
+     *                    Mainnet: 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419
+     *                    Local:   deploy MockV3Aggregator from test helpers
+     */
+    constructor(address _priceFeed) {
+        require(_priceFeed != address(0), "Invalid price feed address");
+        priceFeed = AggregatorV3Interface(_priceFeed);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  STEP 1 — Borrower creates a loan request
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * @notice Borrower locks ETH collateral and advertises a loan request.
      *
-     * msg.value = collateral ETH deposited. Must be >= 150% of principal.
+     * @param principal       How much ETH the borrower wants to receive (wei).
+     * @param durationDays    Loan term in days (1 – 730).
+     * @param interestRateBps Annual interest in basis points (1 – 10000).
      *
-     * Example: borrower wants 1 ETH loan.
-     *   → must send at least 1.5 ETH as msg.value (collateral)
-     *   → call: createLoan(1 ether, 30, 1200) with {value: 1.5 ether}
+     * msg.value = collateral to lock. Must satisfy:
+     *   collateral ≥ principal × 150 / 100
+     *
+     * Example — borrower wants 1 ETH for 30 days at 12% APR:
+     *   createLoan(1 ether, 30, 1200)  { value: 1.5 ether }
+     *
+     * @return loanId  The newly created loan ID.
      */
     function createLoan(
         uint256 principal,
         uint256 durationDays,
         uint256 interestRateBps
     ) external payable returns (uint256 loanId) {
-        require(principal > 0, "Principal must be > 0");
-        require(durationDays >= 1 && durationDays <= 730, "Duration: 1-730 days");
-        require(interestRateBps > 0 && interestRateBps <= 10000, "Rate: 1-10000 bps");
-        require(msg.value > 0, "Must deposit collateral");
+        require(principal > 0,                                  "Principal must be > 0");
+        require(durationDays >= 1 && durationDays <= 730,       "Duration: 1-730 days");
+        require(interestRateBps > 0 && interestRateBps <= 10_000, "Rate: 1-10000 bps");
+        require(msg.value > 0,                                  "Must deposit collateral");
 
-        // ── Collateral ratio check ──
-        // ratio = (collateral * 100) / principal >= 150
-        uint256 ratio = (msg.value * PRECISION) / principal;
-        require(ratio >= MIN_COLLATERAL_RATIO, "Collateral must be >= 150% of principal");
+        // Collateral must be >= 150% of principal
+        // ratio = collateral * 100 / principal >= 150
+        require(
+            (msg.value * 100) / principal >= MIN_COLLATERAL_RATIO,
+            "Collateral must be >= 150% of principal"
+        );
 
         loanId = loanCounter++;
 
@@ -104,218 +220,360 @@ contract LendingPlatform {
             borrower:         payable(msg.sender),
             lender:           payable(address(0)),
             principal:        principal,
-            collateral:       msg.value,    // collateral is locked in contract
-            interestRateBps:  interestRateBps,
-            durationDays:     durationDays,
-            startTime:        0,
+            collateralAmount: msg.value,
+            interestRate:     interestRateBps,
+            startDate:        0,
             dueDate:          0,
+            repaid:           false,
+            completed:        false,
+            defaulted:        false,
+            durationDays:     durationDays,
             status:           LoanStatus.Pending
         });
 
         totalBorrowed[msg.sender] += principal;
+        _userLoans[msg.sender].push(loanId);
 
         emit LoanCreated(loanId, msg.sender, principal, msg.value, interestRateBps, durationDays);
     }
 
-    // ═══════════════════════════════════════════════════
-    // STEP 2 — Lender funds the loan
-    // ═══════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
+    //  STEP 2 — Lender funds the loan
+    // ═══════════════════════════════════════════════════════════════
+
     /**
-     * Lender sends exactly loan.principal ETH.
-     * Contract immediately forwards it to the borrower.
-     * Collateral remains locked until repayment or liquidation.
+     * @notice Lender sends exactly loan.principal ETH; borrower receives it instantly.
+     *
+     * @param loanId  The loan to fund.
+     *
+     * Collateral remains locked in the contract until repayment or liquidation.
+     * The lender's address is recorded; repayment and liquidation proceeds go to them.
      */
     function fundLoan(uint256 loanId) external payable loanExists(loanId) {
         Loan storage loan = loans[loanId];
 
-        require(loan.status == LoanStatus.Pending, "Loan not pending");
-        require(msg.sender != loan.borrower, "Borrower cannot fund own loan");
-        require(msg.value == loan.principal, "Must send exact principal amount");
+        require(loan.status == LoanStatus.Pending,       "Loan not pending");
+        require(msg.sender != loan.borrower,             "Borrower cannot fund own loan");
+        require(msg.value  == loan.principal,            "Must send exact principal amount");
 
         loan.lender    = payable(msg.sender);
-        loan.startTime = block.timestamp;
+        loan.startDate = block.timestamp;
         loan.dueDate   = block.timestamp + (loan.durationDays * 1 days);
         loan.status    = LoanStatus.Active;
 
         totalLent[msg.sender] += loan.principal;
+        _userLoans[msg.sender].push(loanId);
 
-        // Immediately send principal to borrower
+        // Forward principal to borrower immediately
         (bool sent, ) = loan.borrower.call{value: loan.principal}("");
         require(sent, "Transfer to borrower failed");
 
-        emit LoanFunded(loanId, msg.sender, loan.dueDate);
+        emit LoanFunded(loanId, msg.sender, loan.principal);
     }
 
-    // ═══════════════════════════════════════════════════
-    // STEP 3 — Borrower repays loan
-    // ═══════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
+    //  STEP 3a — Borrower repays the loan
+    // ═══════════════════════════════════════════════════════════════
+
     /**
-     * Borrower sends principal + interest.
-     * Contract sends repayment to lender and returns collateral to borrower.
+     * @notice Borrower repays principal + accrued interest.
+     *         Sends the repayment to lender and returns collateral to borrower.
      *
-     * Interest formula: principal * rate * timeElapsed / (10000 * 365 days)
+     * @param loanId  The loan to repay.
+     *
+     * msg.value must be >= principal + calculateInterest(...)
+     * Any overpayment is refunded to the borrower.
+     *
+     * Interest formula (simple): I = P × rate(bps) × elapsed / (10000 × 365 days)
      */
     function repayLoan(uint256 loanId) external payable loanExists(loanId) {
         Loan storage loan = loans[loanId];
 
         require(loan.status == LoanStatus.Active, "Loan not active");
-        require(msg.sender == loan.borrower, "Only borrower can repay");
+        require(msg.sender  == loan.borrower,     "Only borrower can repay");
 
-        uint256 interest       = calculateInterest(loanId);
-        uint256 totalOwed      = loan.principal + interest;
+        uint256 interest   = calculateInterest(loan.principal, loan.interestRate,
+                                               block.timestamp - loan.startDate);
+        uint256 amountOwed = loan.principal + interest;
 
-        require(msg.value >= totalOwed, "Insufficient repayment amount");
+        require(msg.value >= amountOwed, "Insufficient repayment");
 
-        loan.status = LoanStatus.Repaid;
+        // ── Update state before transfers (re-entrancy guard pattern) ──
+        loan.status    = LoanStatus.Repaid;
+        loan.repaid    = true;
+        loan.completed = true;
         loansCompleted[loan.borrower]++;
 
-        // Send repayment to lender
-        (bool toL, ) = loan.lender.call{value: totalOwed}("");
+        // Repayment to lender
+        (bool toL, ) = loan.lender.call{value: amountOwed}("");
         require(toL, "Transfer to lender failed");
 
-        // Return collateral to borrower
-        (bool toB, ) = loan.borrower.call{value: loan.collateral}("");
+        // Collateral back to borrower
+        (bool toB, ) = loan.borrower.call{value: loan.collateralAmount}("");
         require(toB, "Collateral return failed");
 
-        // Refund any excess sent by borrower
-        if (msg.value > totalOwed) {
-            (bool refund, ) = loan.borrower.call{value: msg.value - totalOwed}("");
+        // Refund overpayment
+        if (msg.value > amountOwed) {
+            (bool refund, ) = loan.borrower.call{value: msg.value - amountOwed}("");
             require(refund, "Refund failed");
         }
 
-        emit LoanRepaid(loanId, loan.borrower, totalOwed);
+        emit LoanRepaid(loanId, loan.borrower, amountOwed);
     }
 
-    // ═══════════════════════════════════════════════════
-    // STEP 4 — Liquidate overdue loan
-    // ═══════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
+    //  STEP 3b — Liquidate if price drops or overdue
+    // ═══════════════════════════════════════════════════════════════
+
     /**
-     * Anyone can call this after dueDate if loan not repaid.
-     * Collateral goes to lender. Borrower default count increases.
+     * @notice Anyone can call this to liquidate a loan when either:
+     *           (a) Chainlink price feed shows collateral value < 120% of principal, OR
+     *           (b) block.timestamp > loan.dueDate (time-based default)
      *
-     * NOTE: In a real system you'd call a Chainlink oracle price feed here
-     * to compare collateral VALUE vs current ETH price. For simplicity,
-     * liquidation happens based on time (past dueDate) only.
+     * @param loanId  The loan to check and potentially liquidate.
+     *
+     * On liquidation:
+     *   • Entire collateral is sent to the lender as compensation.
+     *   • Borrower's defaulted count is incremented.
+     *   • loan.defaulted and loan.completed flags are set.
+     *
+     * WHY anyone can call: This prevents lender from being the only one watching.
+     *   Keepers / bots / users all have incentive to liquidate bad loans.
      */
-    function liquidate(uint256 loanId) external loanExists(loanId) {
+    function liquidateLoanIfNeeded(uint256 loanId) external loanExists(loanId) {
         Loan storage loan = loans[loanId];
 
         require(loan.status == LoanStatus.Active, "Loan not active");
-        require(block.timestamp > loan.dueDate, "Loan not yet overdue");
 
-        loan.status = LoanStatus.Defaulted;
+        bool priceTriggered = false;
+        bool timeTriggered  = block.timestamp > loan.dueDate;
+
+        if (!timeTriggered) {
+            // Check price-based liquidation
+            (uint256 ethPrice, ) = getLatestPrice();
+            uint256 ratio = LoanMath.collateralRatioWithPrice(
+                loan.collateralAmount,
+                loan.principal,
+                ethPrice
+            );
+            priceTriggered = ratio < LIQUIDATION_THRESHOLD;
+        }
+
+        require(timeTriggered || priceTriggered, "Loan is not liquidatable");
+
+        // ── Update state before transfers ──
+        loan.status    = LoanStatus.Defaulted;
+        loan.defaulted = true;
+        loan.completed = true;
         loansDefaulted[loan.borrower]++;
 
-        // Send collateral to lender as compensation
-        uint256 collateral = loan.collateral;
+        uint256 collateral = loan.collateralAmount;
+
+        // Entire collateral goes to lender
         (bool sent, ) = loan.lender.call{value: collateral}("");
         require(sent, "Transfer to lender failed");
 
-        emit LoanLiquidated(loanId, loan.lender, collateral);
+        emit LoanLiquidated(loanId, collateral, priceTriggered);
     }
 
-    // ═══════════════════════════════════════════════════
-    // CANCEL — Borrower cancels before funded
-    // ═══════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
+    //  CANCEL — Borrower cancels before anyone funds
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * @notice Borrower can cancel a Pending loan to recover collateral.
+     *         Not allowed once a lender has funded.
+     *
+     * @param loanId  The loan to cancel.
+     */
     function cancelLoan(uint256 loanId) external loanExists(loanId) {
         Loan storage loan = loans[loanId];
 
         require(loan.status == LoanStatus.Pending, "Can only cancel pending loans");
-        require(msg.sender == loan.borrower, "Only borrower can cancel");
+        require(msg.sender  == loan.borrower,      "Only borrower can cancel");
 
-        loan.status = LoanStatus.Cancelled;
+        loan.status    = LoanStatus.Cancelled;
+        loan.completed = true;
 
-        // Return collateral to borrower
-        (bool sent, ) = loan.borrower.call{value: loan.collateral}("");
+        (bool sent, ) = loan.borrower.call{value: loan.collateralAmount}("");
         require(sent, "Collateral return failed");
 
         emit LoanCancelled(loanId, loan.borrower);
     }
 
-    // ═══════════════════════════════════════════════════
-    // VIEW FUNCTIONS
-    // ═══════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
+    //  CHAINLINK PRICE FEED
+    // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Calculate current interest owed on an active loan.
-     * Uses simple annual interest: I = P * R * T / (10000 * 365 days)
+     * @notice Fetch the latest ETH/USD price from Chainlink.
+     * @return price      ETH price in USD with 8 decimal places
+     *                    e.g. 200000000000 = $2000.00000000
+     * @return updatedAt  Timestamp of the last price update
+     *
+     * Reverts if:
+     *   • answer is zero or negative (invalid price)
+     *   • data is stale (older than PRICE_STALENESS_LIMIT = 1 hour)
      */
-    function calculateInterest(uint256 loanId) public view loanExists(loanId) returns (uint256) {
-        Loan storage loan = loans[loanId];
-        if (loan.status != LoanStatus.Active) return 0;
+    function getLatestPrice() public view returns (uint256 price, uint256 updatedAt) {
+        (
+            /* roundId */,
+            int256 answer,
+            /* startedAt */,
+            uint256 _updatedAt,
+            /* answeredInRound */
+        ) = priceFeed.latestRoundData();
 
-        // Use actual elapsed time, capped at dueDate  
-        uint256 elapsed = block.timestamp > loan.dueDate
-            ? (loan.dueDate - loan.startTime)
-            : (block.timestamp - loan.startTime);
+        require(answer > 0,                                   "Invalid price from oracle");
+        require(block.timestamp - _updatedAt <= PRICE_STALENESS_LIMIT, "Price data is stale");
 
-        // interest = principal * rateBps * elapsed / (10000 * 365 days)
-        return (loan.principal * loan.interestRateBps * elapsed) / (10000 * 365 days);
+        price     = uint256(answer);   // already 8-decimal USD
+        updatedAt = _updatedAt;
     }
 
     /**
-     * Total amount borrower must repay right now.
+     * @notice Calculate the USD value of a given ETH amount using current price.
+     * @param  amountWei  Amount of ETH in wei
+     * @return valueUsd8  Value in USD with 8 decimal places
+     *
+     * Example: 2 ETH at $2000 → 400000000000 (= $4000 × 1e8)
      */
-    function totalOwed(uint256 loanId) external view loanExists(loanId) returns (uint256) {
-        Loan storage loan = loans[loanId];
-        return loan.principal + calculateInterest(loanId);
+    function getCollateralValue(uint256 amountWei) public view returns (uint256 valueUsd8) {
+        (uint256 ethPrice, ) = getLatestPrice();
+        valueUsd8 = LoanMath.collateralValueUsd(amountWei, ethPrice);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  PURE MATH VIEWS
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * @notice Calculate simple interest.
+     * @param  principal    Loan principal in wei
+     * @param  annualRate   Annual rate in basis points (e.g. 1200 = 12%)
+     * @param  timeElapsed  Seconds elapsed since loan start
+     * @return interest     Interest owed in wei
+     *
+     * Formula: interest = principal × annualRate × timeElapsed / (10000 × 365 days)
+     */
+    function calculateInterest(
+        uint256 principal,
+        uint256 annualRate,
+        uint256 timeElapsed
+    ) public pure returns (uint256 interest) {
+        interest = LoanMath.simpleInterest(principal, annualRate, timeElapsed);
     }
 
     /**
-     * Current collateral ratio (how safe this loan is right now).
-     * ratio = collateral * 100 / principal
-     * >= 150 = safe, < 120 = liquidation zone
+     * @notice Total amount the borrower must send to repayLoan right now.
+     * @param  loanId  The active loan
+     * @return owed    principal + accrued interest in wei
      */
-    function collateralRatio(uint256 loanId) external view loanExists(loanId) returns (uint256) {
+    function totalOwed(uint256 loanId) external view loanExists(loanId) returns (uint256 owed) {
+        Loan storage loan = loans[loanId];
+        require(loan.status == LoanStatus.Active, "Loan not active");
+        uint256 elapsed = block.timestamp - loan.startDate;
+        owed = loan.principal + calculateInterest(loan.principal, loan.interestRate, elapsed);
+    }
+
+    /**
+     * @notice Current collateral ratio without price feed (collateral/principal × 100).
+     *         Used for quick checks not requiring USD conversion.
+     * @param  loanId  The loan
+     * @return ratio   Integer percentage (e.g. 150)
+     */
+    function collateralRatio(uint256 loanId) external view loanExists(loanId) returns (uint256 ratio) {
         Loan storage loan = loans[loanId];
         if (loan.principal == 0) return 0;
-        return (loan.collateral * PRECISION) / loan.principal;
+        ratio = (loan.collateralAmount * 100) / loan.principal;
     }
 
     /**
-     * Risk score for a borrower (0–100). Higher = safer to lend to.
-     * Formula: starts at 80, +5 per completion (max 100), -25 per default.
+     * @notice Price-adjusted collateral ratio using Chainlink live price.
+     *         This is what liquidateLoanIfNeeded uses.
+     * @param  loanId  The loan
+     * @return ratio   Integer percentage based on current USD values
      */
-    function riskScore(address borrower) external view returns (uint256) {
-        uint256 score = 80;
-        uint256 completed = loansCompleted[borrower];
-        uint256 defaulted = loansDefaulted[borrower];
-
-        // Bonus for repaying
-        uint256 bonus = completed * 5;
-        if (score + bonus > 100) score = 100;
-        else score += bonus;
-
-        // Penalty for defaults
-        uint256 penalty = defaulted * 25;
-        if (penalty >= score) return 0;
-        return score - penalty;
+    function collateralRatioWithPrice(uint256 loanId) external view loanExists(loanId) returns (uint256 ratio) {
+        Loan storage loan = loans[loanId];
+        (uint256 ethPrice, ) = getLatestPrice();
+        ratio = LoanMath.collateralRatioWithPrice(
+            loan.collateralAmount,
+            loan.principal,
+            ethPrice
+        );
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  QUERY FUNCTIONS
+    // ═══════════════════════════════════════════════════════════════
+
     /**
-     * Get all fields of a loan in one call.
+     * @notice Return all fields of a loan as a tuple.
+     * @param  loanId  The loan to query
      */
     function getLoan(uint256 loanId) external view loanExists(loanId) returns (
-        uint256 id,
-        address borrower,
-        address lender,
-        uint256 principal,
-        uint256 collateral,
-        uint256 interestRateBps,
-        uint256 durationDays,
-        uint256 startTime,
-        uint256 dueDate,
-        uint8   status
+        uint256    id,
+        address    borrower,
+        address    lender,
+        uint256    principal,
+        uint256    collateralAmount,
+        uint256    interestRate,
+        uint256    startDate,
+        uint256    dueDate,
+        bool       repaid,
+        bool       completed,
+        bool       defaulted,
+        uint256    durationDays,
+        uint8      status
     ) {
         Loan storage l = loans[loanId];
         return (
-            l.id, l.borrower, l.lender,
-            l.principal, l.collateral,
-            l.interestRateBps, l.durationDays,
-            l.startTime, l.dueDate,
+            l.id,
+            l.borrower,
+            l.lender,
+            l.principal,
+            l.collateralAmount,
+            l.interestRate,
+            l.startDate,
+            l.dueDate,
+            l.repaid,
+            l.completed,
+            l.defaulted,
+            l.durationDays,
             uint8(l.status)
         );
     }
 
+    /**
+     * @notice Return all loan IDs where `user` is borrower OR lender.
+     * @param  user     The address to query
+     * @return loanIds  Array of loan IDs (unsorted, may contain duplicates if
+     *                  same address borrows from themselves — prevented by fundLoan)
+     */
+    function getUserLoans(address user) external view returns (uint256[] memory loanIds) {
+        return _userLoans[user];
+    }
+
+    /**
+     * @notice Reputation score 0–100. Higher = safer borrower.
+     *         Starts at 80, +5 per clean repayment (capped at 100), -25 per default.
+     * @param  borrower  Address to score
+     * @return score     0–100
+     */
+    function riskScore(address borrower) external view returns (uint256 score) {
+        score = 80;
+        uint256 bonus   = loansCompleted[borrower] * 5;
+        uint256 penalty = loansDefaulted[borrower] * 25;
+
+        score = (score + bonus > 100) ? 100 : score + bonus;
+        score = (penalty >= score)    ? 0   : score - penalty;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  FALLBACK
+    // ═══════════════════════════════════════════════════════════════
+
+    /// @dev Accept plain ETH transfers (e.g. from test harness)
     receive() external payable {}
 }

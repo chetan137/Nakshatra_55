@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock, CheckCircle, AlertTriangle, XCircle, RefreshCw, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getMyLoans, repayLoan as repayAPI, liquidateLoan as liquidateAPI } from '../api/loanApi';
+import { getMyLoans, repayLoan as repayAPI, liquidateLoan as liquidateAPI, getLoanOwed } from '../api/loanApi';
 import { useWallet } from '../hooks/useWallet';
 
 const STATUS_CONFIG = {
@@ -145,18 +145,41 @@ export default function LoanHistory() {
     }
   }
 
-  const displayed = filter === 'all' ? loans : loans.filter(l => l.status === filter);
+  const filterBtns = ['all', 'pending', 'active', 'repaid', 'defaulted'];
+
+  const displayed = useMemo(
+    () => filter === 'all' ? loans : loans.filter(l => l.status === filter),
+    [loans, filter]
+  );
+
+  const statusCounts = useMemo(() => {
+    const c = {};
+    filterBtns.forEach(f => { c[f] = f === 'all' ? loans.length : loans.filter(l => l.status === f).length; });
+    return c;
+  }, [loans]);
 
   // ── Repay ──────────────────────────────────────────────
   async function handleRepay(loan) {
-    const totalOwedETH = (loan.principal * (1 + (loan.interestRateBps / 10000 * loan.durationDays / 365))).toFixed(8);
-    if (!window.confirm(`Repay ${totalOwedETH} ETH (principal + interest) to get your collateral back?`)) return;
-
     try {
       const addr = wallet.account || await wallet.connect();
       if (!addr) return;
 
-      toast('Sending repayment via MetaMask…', { icon: '⛓️' });
+      // Fetch live repayment amount from backend (which reads from chain)
+      toast('Fetching exact repayment amount…', { icon: '🔗' });
+      let totalOwedETH;
+      try {
+        const owedRes = await getLoanOwed(loan._id);
+        totalOwedETH  = owedRes.data.totalOwedEth;
+      } catch {
+        // Fallback: calculate with elapsed time (less accurate)
+        const elapsedDays = loan.startDate
+          ? (Date.now() - new Date(loan.startDate).getTime()) / 86400000
+          : loan.durationDays;
+        totalOwedETH = (loan.principal * (1 + (loan.interestRateBps / 10000 * elapsedDays / 365))).toFixed(8);
+        toast('Using estimated repayment amount (chain unavailable)', { icon: '⚠️' });
+      }
+
+      toast(`Confirm repayment of ${Number(totalOwedETH).toFixed(6)} ETH in MetaMask`, { icon: '⛓️', duration: 6000 });
       const { txHash } = await wallet.callRepayLoan(loan.onChainId, totalOwedETH);
 
       toast('Updating records…', { icon: '💾' });
@@ -171,14 +194,33 @@ export default function LoanHistory() {
 
   // ── Liquidate ──────────────────────────────────────────
   async function handleLiquidate(loan) {
-    if (!window.confirm('Liquidate this overdue loan? The collateral will be sent to you.')) return;
+    // Use toast confirmation instead of window.confirm
+    const confirmed = await new Promise((resolve) => {
+      toast(
+        (t) => (
+          <span>
+            Liquidate this loan? Collateral goes to you.{' '}
+            <button onClick={() => { toast.dismiss(t.id); resolve(true); }}
+              style={{ marginLeft: 8, background: '#C62828', color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 700 }}>
+              Confirm
+            </button>
+            <button onClick={() => { toast.dismiss(t.id); resolve(false); }}
+              style={{ marginLeft: 4, background: '#E5E7EB', color: '#374151', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
+              Cancel
+            </button>
+          </span>
+        ),
+        { duration: 10000 }
+      );
+    });
+    if (!confirmed) return;
 
     try {
       const addr = wallet.account || await wallet.connect();
       if (!addr) return;
 
-      toast('Triggering liquidation via MetaMask…', { icon: '⛓️' });
-      const { txHash } = await wallet.callLiquidate(loan.onChainId);
+      toast('Triggering liquidation via MetaMask…', { icon: '⛓️', duration: 6000 });
+      const { txHash } = await wallet.callLiquidateLoanIfNeeded(loan.onChainId);
 
       toast('Updating records…', { icon: '💾' });
       await liquidateAPI(loan._id, { liquidateTxHash: txHash });
@@ -189,8 +231,6 @@ export default function LoanHistory() {
       toast.error(err?.response?.data?.message || err.message || 'Liquidation failed');
     }
   }
-
-  const filterBtns = ['all', 'pending', 'active', 'repaid', 'defaulted'];
 
   return (
     <div className="page-dashboard" style={{ background: '#F5F3FF' }}>
@@ -225,7 +265,7 @@ export default function LoanHistory() {
                 textTransform: 'capitalize',
               }}
             >
-              {f === 'all' ? `All (${loans.length})` : `${f} (${loans.filter(l => l.status === f).length})`}
+              {f === 'all' ? `All (${loans.length})` : `${f} (${statusCounts[f]})`}
             </button>
           ))}
         </div>
