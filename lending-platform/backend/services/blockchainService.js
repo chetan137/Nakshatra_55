@@ -61,19 +61,36 @@ async function verifyTx(txHash) {
     return true;
   }
 
-  try {
-    const tx = await provider.getTransaction(txHash);
-    if (!tx) return false;
-    const contractAddr = process.env.CONTRACT_ADDRESS;
-    if (tx.to && tx.to.toLowerCase() !== contractAddr.toLowerCase()) return false;
-    // Also confirm it was mined (receipt exists)
-    const receipt = await provider.getTransactionReceipt(txHash);
-    if (!receipt || receipt.status === 0) return false;
-    return true;
-  } catch (err) {
-    console.warn('[Blockchain] verifyTx error:', err.message);
-    return false;
+  // Infura/Alchemy nodes can be eventually consistent.
+  // After frontend tx.wait(), the specific read node we hit might not have indexed it yet.
+  // We'll retry up to 3 times before declaring it a failure.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const tx = await provider.getTransaction(txHash);
+      if (!tx) {
+        if (attempt < 3) { await new Promise(r => setTimeout(r, 2000)); continue; }
+        return false;
+      }
+      
+      const contractAddr = String(process.env.CONTRACT_ADDRESS).trim();
+      if (tx.to && tx.to.toLowerCase() !== contractAddr.toLowerCase()) return false;
+      
+      // Also confirm it was mined (receipt exists)
+      const receipt = await provider.getTransactionReceipt(txHash);
+      if (!receipt) {
+        if (attempt < 3) { await new Promise(r => setTimeout(r, 2000)); continue; }
+        return false;
+      }
+      if (receipt.status === 0) return false;
+      
+      return true; // Successfully verified on-chain
+    } catch (err) {
+      if (attempt < 3) { await new Promise(r => setTimeout(r, 2000)); continue; }
+      console.warn('[Blockchain] verifyTx error:', err.message);
+      return false;
+    }
   }
+  return false;
 }
 
 /**
