@@ -25,6 +25,9 @@ export const getMyLoans   = ()     => API.get('/loans/my');
 // GET dashboard stats
 export const getMyStats   = ()     => API.get('/loans/stats');
 
+// GET settlement status (active loan cap logic)
+export const getSettlement = ()     => API.get('/loans/settlement');
+
 // GET single loan
 export const getLoan      = (id)   => API.get(`/loans/${id}`);
 

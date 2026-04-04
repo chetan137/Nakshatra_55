@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../hooks/useWallet';
 import { useZkProof } from '../hooks/useZkProof';
 import { getMyStats } from '../api/loanApi';
+import SettlementStatus from '../components/SettlementStatus';
 
 export default function Dashboard() {
   const { user, token, logout } = useAuth();
@@ -265,6 +266,16 @@ export default function Dashboard() {
             </div>
           );
         })()}
+
+        {/* ── Settlement Status (borrower only) ── */}
+        {user.role === 'borrower' && (
+          <div style={{ marginBottom: 28 }}>
+            <h2 className="section-heading" style={{ fontSize: 18, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 20 }}>⚖️</span> Settlement Status
+            </h2>
+            <SettlementStatus userRole={user.role} />
+          </div>
+        )}
 
         {/* ── Profile + Wallet ── */}
         <div className="dash-grid">

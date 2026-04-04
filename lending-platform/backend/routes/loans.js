@@ -156,10 +156,10 @@ router.get('/my', verifyToken, async (req, res, next) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // GET /api/loans/stats
 // Auth — dashboard stats for current user
-// ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 router.get('/stats', verifyToken, async (req, res, next) => {
   try {
     const uid = req.user._id;
@@ -184,6 +184,58 @@ router.get('/stats', verifyToken, async (req, res, next) => {
         repaid, defaulted,
         loansAsBorrower: borrowedLoans.length,
         loansAsLender:   lentLoans.length,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─────────────────────────────────────────────
+// GET /api/loans/settlement
+// Auth — settlement status: active cap (max 2), active loan list
+// ─────────────────────────────────────────────
+router.get('/settlement', verifyToken, async (req, res, next) => {
+  try {
+    const uid = req.user._id;
+    const MAX_LOANS = 2;
+
+    const [activeLoans, completedLoans, defaultedLoans] = await Promise.all([
+      Loan.find({ borrower: uid, status: { $in: ['active', 'pending'] } })
+          .sort({ createdAt: -1 })
+          .lean({ virtuals: true }),
+      Loan.countDocuments({ borrower: uid, status: 'repaid' }),
+      Loan.countDocuments({ borrower: uid, status: 'defaulted' }),
+    ]);
+
+    const activeLoanCount  = activeLoans.length;
+    const loansAvailable   = Math.max(0, MAX_LOANS - activeLoanCount);
+    const canRequestNewLoan = activeLoanCount < MAX_LOANS;
+
+    res.json({
+      success: true,
+      settlement: {
+        maxLoansAllowed:      MAX_LOANS,
+        activeLoanCount,
+        loansAvailable,
+        canRequestNewLoan,
+        totalLoansCompleted:  completedLoans,
+        totalLoansDefaulted:  defaultedLoans,
+        activeLoans:          activeLoans.map(l => ({
+          _id:             l._id,
+          principal:       l.principal,
+          collateral:      l.collateral,
+          interestRateBps: l.interestRateBps,
+          durationDays:    l.durationDays,
+          status:          l.status,
+          dueDate:         l.dueDate,
+          startDate:       l.startDate,
+          onChainId:       l.onChainId,
+          loanType:        l.loanType,
+          riskScore:       l.riskScore,
+          collateralRatio: l.collateralRatio,
+        })),
+        mode: 'Parallel',
       },
     });
   } catch (err) {
@@ -295,8 +347,10 @@ router.put('/:id/fund', verifyToken, async (req, res, next) => {
 
 // ─────────────────────────────────────────────────────────
 // PUT /api/loans/:id/repay
-// Auth — borrower records repayment AFTER calling repayLoan() on chain
-// Body: { repayTxHash }
+// Auth — borrower records repayment.
+// On-chain loans: repayTxHash required (or optional in dev).
+// Off-chain / guarantor loans: no txHash needed.
+// Body: { repayTxHash? }
 // ─────────────────────────────────────────────────────────
 router.put('/:id/repay', verifyToken, async (req, res, next) => {
   try {
@@ -309,7 +363,10 @@ router.put('/:id/repay', verifyToken, async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Only borrower can repay' });
     }
 
-    await requireTxHash(repayTxHash, 'repayTxHash');
+    // Only require tx hash for on-chain loans (onChainId !== null)
+    if (loan.onChainId !== null && loan.onChainId !== undefined) {
+      await requireTxHash(repayTxHash, 'repayTxHash');
+    }
 
     loan.repayTxHash = repayTxHash || null;
     loan.status      = 'repaid';

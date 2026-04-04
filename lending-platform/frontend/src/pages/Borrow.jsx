@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Wallet, DollarSign, Clock, Percent, Info,
-  RefreshCw, UserCheck, AlertTriangle, CheckCircle,
+  RefreshCw, UserCheck, AlertTriangle, CheckCircle, XCircle, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useWallet } from '../hooks/useWallet';
 import { useZkProof } from '../hooks/useZkProof';
-import { createLoan } from '../api/loanApi';
+import { createLoan, getSettlement } from '../api/loanApi';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
@@ -31,6 +31,17 @@ export default function Borrow() {
 
   const [ethPrice,     setEthPrice]     = useState(null);
   const [priceLoading, setPriceLoading] = useState(true);
+
+  // ── Settlement gate — max 2 active/pending loans ──────────
+  const [settlement,     setSettlement]     = useState(null);
+  const [settlementLoad, setSettlementLoad] = useState(true);
+
+  useEffect(() => {
+    getSettlement()
+      .then(r => setSettlement(r.data.settlement))
+      .catch(() => {})
+      .finally(() => setSettlementLoad(false));
+  }, []);
 
   const [form, setForm] = useState({
     principalUsd:     '',
@@ -132,7 +143,86 @@ export default function Borrow() {
           </div>
         </div>
 
-        {/* ETH price banner */}
+        {/* ── Settlement Block — shown when at limit ── */}
+        {!settlementLoad && settlement && !settlement.canRequestNewLoan ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* Red alert */}
+            <div style={{
+              background: 'rgba(186,26,26,0.15)',
+              border: '1.5px solid rgba(186,26,26,0.5)',
+              borderRadius: 16, padding: '20px 22px',
+              display: 'flex', alignItems: 'flex-start', gap: 14,
+            }}>
+              <XCircle size={28} color="#ff6b6b" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontWeight: 800, fontSize: 17, color: '#fff', marginBottom: 6 }}>
+                  Loan Limit Reached
+                </p>
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
+                  You already have <strong style={{ color: '#ff6b6b' }}>{settlement.activeLoanCount} active / pending loans</strong>.
+                  The maximum is <strong style={{ color: '#fff' }}>2</strong>. Repay at least one loan before requesting a new one.
+                </p>
+              </div>
+            </div>
+
+            {/* Active loans list */}
+            {settlement.activeLoans?.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                  Your Current Loans
+                </p>
+                {settlement.activeLoans.map((loan, i) => (
+                  <div key={loan._id} style={{
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: 13, padding: '14px 16px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                          background: loan.status === 'active' ? 'rgba(0,183,127,0.2)' : 'rgba(196,128,58,0.2)',
+                          color: loan.status === 'active' ? '#00b47e' : '#c4803a',
+                        }}>
+                          {loan.status.toUpperCase()}
+                        </span>
+                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Loan #{i + 1}</span>
+                      </div>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 2 }}>
+                        {loan.principal?.toFixed(6)} ETH
+                      </p>
+                      {loan.dueDate && (
+                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+                          Due: {new Date(loan.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
+                    {loan.status === 'active' && (
+                      <button
+                        className="btn"
+                        style={{ background: '#ba1a1a', color: '#fff', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}
+                        onClick={() => navigate(`/history?repay=${loan._id}`)}
+                      >
+                        Repay <ChevronRight size={13} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: 14, marginTop: 4 }}
+              onClick={() => navigate('/history')}
+            >
+              Go to Loan History
+            </button>
+          </div>
+        ) : (
+          <>
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)',
@@ -318,6 +408,8 @@ export default function Borrow() {
               : <><Wallet size={18} /> Submit Loan Request</>}
           </button>
         </form>
+          </>
+        )}
       </div>
     </div>
   );

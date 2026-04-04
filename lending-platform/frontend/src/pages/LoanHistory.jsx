@@ -230,29 +230,60 @@ export default function LoanHistory() {
   // ── Repay ──────────────────────────────────────────────
   async function handleRepay(loan) {
     try {
-      const addr = wallet.account || await wallet.connect();
-      if (!addr) return;
+      const hasOnChainId = loan.onChainId !== null && loan.onChainId !== undefined;
 
-      toast('Fetching exact repayment amount…', { icon: '🔗' });
-      let totalOwedETH;
-      try {
-        const owedRes = await getLoanOwed(loan._id);
-        totalOwedETH  = owedRes.data.totalOwedEth;
-      } catch {
+      if (hasOnChainId) {
+        // ── On-chain collateral loan: call smart contract ──────────
+        const addr = wallet.account || await wallet.connect();
+        if (!addr) return;
+
+        toast('Fetching exact repayment amount…', { icon: '🔗' });
+        let totalOwedETH;
+        try {
+          const owedRes = await getLoanOwed(loan._id);
+          totalOwedETH  = owedRes.data.totalOwedEth;
+        } catch {
+          const elapsedDays = loan.startDate
+            ? (Date.now() - new Date(loan.startDate).getTime()) / 86400000
+            : loan.durationDays;
+          totalOwedETH = (loan.principal * (1 + (loan.interestRateBps / 10000 * elapsedDays / 365))).toFixed(8);
+          toast('Using estimated repayment (chain unavailable)', { icon: '⚠️' });
+        }
+
+        toast(`Confirm repayment of ${Number(totalOwedETH).toFixed(6)} ETH in MetaMask`, { icon: '⛓️', duration: 6000 });
+        const { txHash } = await wallet.callRepayLoan(loan.onChainId, totalOwedETH);
+
+        toast('Updating records…', { icon: '💾' });
+        await repayAPI(loan._id, { repayTxHash: txHash });
+        toast.success('Loan repaid! Collateral returned to your wallet.');
+
+      } else {
+        // ── Guarantor loan: send ETH directly to lender's wallet ──
+        const lenderAddr = loan.lenderAddress;
+        if (!lenderAddr) {
+          return toast.error('Lender wallet address not found — cannot send repayment.');
+        }
+
+        // Calculate owed: principal + simple interest
         const elapsedDays = loan.startDate
           ? (Date.now() - new Date(loan.startDate).getTime()) / 86400000
           : loan.durationDays;
-        totalOwedETH = (loan.principal * (1 + (loan.interestRateBps / 10000 * elapsedDays / 365))).toFixed(8);
-        toast('Using estimated repayment (chain unavailable)', { icon: '⚠️' });
+        const totalOwedETH = (
+          loan.principal * (1 + (loan.interestRateBps / 10000) * (elapsedDays / 365))
+        ).toFixed(8);
+
+        toast(
+          `MetaMask will send ${Number(totalOwedETH).toFixed(6)} ETH directly to lender (${lenderAddr.slice(0,6)}…${lenderAddr.slice(-4)})`,
+          { icon: '💸', duration: 6000 }
+        );
+
+        const txHash = await wallet.sendEthDirect(lenderAddr, totalOwedETH);
+
+        toast('Updating records…', { icon: '💾' });
+        await repayAPI(loan._id, { repayTxHash: txHash });
+        toast.success('Repayment sent to lender! Loan marked as repaid.');
       }
 
-      toast(`Confirm repayment of ${Number(totalOwedETH).toFixed(6)} ETH in MetaMask`, { icon: '⛓️', duration: 6000 });
-      const { txHash } = await wallet.callRepayLoan(loan.onChainId, totalOwedETH);
-
-      toast('Updating records…', { icon: '💾' });
-      await repayAPI(loan._id, { repayTxHash: txHash });
-
-      toast.success('Loan repaid! Collateral returned to your wallet.');
       fetchLoans();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message || 'Repayment failed');
