@@ -182,11 +182,11 @@ function ApproveModal({ request, onConfirm, onClose, loading }) {
           borderRadius: 12, padding: '14px 16px', marginBottom: 20,
         }}>
           <p style={{ fontSize: 14, color: '#ba1a1a', fontWeight: 700, marginBottom: 4 }}>
-            ⚠️ You are guaranteeing {request.guaranteeAmountEth} ETH
+            ⚠️ You are guaranteeing {fmtUsd(request.guaranteeAmountEth) || `${request.guaranteeAmountEth} ETH`}
           </p>
           <p style={{ fontSize: 13, color: '#815249', lineHeight: 1.6 }}>
             If <strong>{request.borrower?.walletAddress?.slice(0,6)}…</strong> defaults on this loan, you will be responsible
-          for repaying <strong>{request.guaranteeAmountEth} ETH</strong>.
+          for repaying <strong>{fmtUsd(request.guaranteeAmountEth) || `${request.guaranteeAmountEth} ETH`}</strong>.
           </p>
         </div>
 
@@ -407,13 +407,25 @@ export default function GuarantorInbox() {
   const [approveModal, setApproveModal] = useState(null); // request obj
   const [rejectModal,  setRejectModal]  = useState(null); // request obj
   const [actionLoading, setActionLoading] = useState(false);
+  const [ethPrice,     setEthPrice]     = useState(null);
 
   const reload = useCallback(() => setRefreshKey(k => k + 1), []);
+
+  const fmtUsd = (eth) => ethPrice
+    ? (eth * ethPrice).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+    : null;
 
   useEffect(() => {
     if (!token) return;
     getInbox(token).then(setInbox);
     getMyRequests(token).then(setMyRequests);
+
+    // Fetch ETH price
+    const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
+    fetch(`${API_BASE}/api/eth-price`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setEthPrice(d.usd); })
+      .catch(() => {});
   }, [token, refreshKey, getInbox, getMyRequests]);
 
   async function handleApprove(data) {
@@ -578,16 +590,17 @@ export default function GuarantorInbox() {
                     background: 'rgba(96,24,11,0.03)', borderRadius: 10, padding: '12px 14px',
                   }}>
                     {[
-                      { label: 'Loan Amount',    value: `${loan?.principal} ETH` },
-                      { label: 'Your Liability', value: `${req.guaranteeAmountEth} ETH`, accent: true },
+                      { label: 'Loan Amount',    value: fmtUsd(loan?.principal) || `${loan?.principal} ETH`, sub: `${loan?.principal} ETH` },
+                      { label: 'Your Liability', value: fmtUsd(req.guaranteeAmountEth) || `${req.guaranteeAmountEth} ETH`, sub: `${req.guaranteeAmountEth} ETH`, accent: true },
                       { label: 'Duration',       value: `${loan?.durationDays} days` },
-                      { label: 'Interest Rate',  value: `${((loan?.interestRateBps || 0) / 100).toFixed(1)}% APR` },
+                      { label: 'Interest Rate',  value: `${((loan?.interestRateBps || 0) / 100).toFixed(1)}% ` },
                     ].map((item, i) => (
                       <div key={i}>
                         <p style={{ fontSize: 11, color: '#8a7e80', marginBottom: 2 }}>{item.label}</p>
                         <p style={{ fontSize: 15, fontWeight: 700, color: item.accent ? '#ba1a1a' : '#342f30' }}>
                           {item.value}
                         </p>
+                        {item.sub && <p style={{ fontSize: 11, color: '#8a7e80' }}>{item.sub}</p>}
                       </div>
                     ))}
                   </div>
@@ -711,8 +724,8 @@ export default function GuarantorInbox() {
                   </div>
 
                   <div style={{ display: 'flex', gap: 20, fontSize: 13, color: '#8a7e80', marginBottom: 10, flexWrap: 'wrap' }}>
-                    <span>Loan: <strong style={{ color: '#342f30' }}>{loan?.principal} ETH</strong></span>
-                    <span>Liability: <strong style={{ color: '#ba1a1a' }}>{req.guaranteeAmountEth} ETH</strong></span>
+                    <span>Loan: <strong style={{ color: '#342f30' }}>{fmtUsd(loan?.principal) || `${loan?.principal} ETH`}</strong></span>
+                    <span>Liability: <strong style={{ color: '#ba1a1a' }}>{fmtUsd(req.guaranteeAmountEth) || `${req.guaranteeAmountEth} ETH`}</strong></span>
                     <span>Sent: <strong style={{ color: '#342f30' }}>{new Date(req.requestedAt).toLocaleDateString('en-IN')}</strong></span>
                   </div>
 
