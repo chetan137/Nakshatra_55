@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, CheckCircle, AlertTriangle, XCircle, RefreshCw, ExternalLink, Zap } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle, AlertTriangle, XCircle, RefreshCw, ExternalLink, Zap, Percent } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getMyLoans, repayLoan as repayAPI, liquidateLoan as liquidateAPI, getLoanOwed, getLoan, cancelLoan as cancelAPI } from '../api/loanApi';
+import { getMyLoans, repayLoan as repayAPI, liquidateLoan as liquidateAPI, getLoanOwed, getLoan, cancelLoan as cancelAPI, respondToCounter } from '../api/loanApi';
 import { useWallet } from '../hooks/useWallet';
 
 const STATUS_CONFIG = {
@@ -14,7 +14,7 @@ const STATUS_CONFIG = {
 };
 
 // ── LoanRow ──────────────────────────────────────────────────
-function LoanRow({ loan, onRepay, onLiquidate, onCancel, currentUserId, ethPrice }) {
+function LoanRow({ loan, onRepay, onLiquidate, onCancel, onCounterRespond, currentUserId, ethPrice }) {
   const cfg        = STATUS_CONFIG[loan.status] || STATUS_CONFIG.pending;
   const isBorrower = String(loan.borrower?._id || loan.borrower) === currentUserId;
   const isActive   = loan.status === 'active';
@@ -112,6 +112,65 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, currentUserId, ethPrice
               </span>
             )}
           </div>
+
+          {/* ── Counter-Offer Banner (borrower view) ── */}
+          {isBorrower && isPending && loan.counterOffer?.status === 'pending' && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(196,128,58,0.10), rgba(96,24,11,0.06))',
+              border: '2px solid rgba(196,128,58,0.5)',
+              borderRadius: 14, padding: '16px 18px', marginBottom: 14,
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center',
+              justifyContent: 'space-between', gap: 12,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 }}>
+                <div style={{
+                  background: 'linear-gradient(135deg,#c4803a,#815249)',
+                  borderRadius: 8, padding: 7, flexShrink: 0,
+                }}>
+                  <Percent size={16} color="white" />
+                </div>
+                <div>
+                  <p style={{ fontWeight: 800, fontSize: 14, color: '#342f30', margin: '0 0 2px' }}>
+                    💡 Lender Counter-Offer
+                  </p>
+                  <p style={{ fontSize: 13, color: '#815249', margin: 0, fontWeight: 600 }}>
+                    Proposed rate: <strong style={{ fontSize: 16, color: '#60180b' }}>
+                      {(loan.counterOffer.rateBps / 100).toFixed(2)}%
+                    </strong>
+                    <span style={{ fontSize: 12, color: '#8a7e80', marginLeft: 6 }}>
+                      (your ask: {(loan.interestRateBps / 100).toFixed(2)}%)
+                    </span>
+                  </p>
+                  {loan.counterOffer.message && (
+                    <p style={{ fontSize: 12, color: '#8a7e80', marginTop: 4, fontStyle: 'italic' }}>
+                      “{loan.counterOffer.message}”
+                    </p>
+                  )}
+                  <p style={{ fontSize: 11, color: '#8a7e80', marginTop: 4 }}>
+                    From {loan.counterOffer.byAddress
+                      ? `${loan.counterOffer.byAddress.slice(0,6)}…${loan.counterOffer.byAddress.slice(-4)}`
+                      : 'a lender'}
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <button
+                  className="btn"
+                  style={{ background: '#00373f', color: 'white', fontSize: 13, padding: '9px 18px' }}
+                  onClick={() => onCounterRespond(loan, 'accept')}
+                >
+                  ✔ Accept
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: 13, padding: '9px 18px', color: '#ba1a1a', borderColor: '#ba1a1a' }}
+                  onClick={() => onCounterRespond(loan, 'reject')}
+                >
+                  ✕ Reject
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Data grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '4px 24px', fontSize: 14 }}>
@@ -440,6 +499,52 @@ export default function LoanHistory() {
     }
   }
 
+  // ── Counter-Offer Respond (Accept / Reject) ──────────────────────
+  async function handleCounterRespond(loan, action) {
+    const isAccept = action === 'accept';
+    const counterPct = (loan.counterOffer.rateBps / 100).toFixed(2);
+    const originalPct = (loan.interestRateBps / 100).toFixed(2);
+
+    const confirmed = await new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:9999;padding:24px';
+      overlay.innerHTML = `
+        <div style="background:white;border-radius:20px;padding:28px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+          <h2 style="margin:0 0 8px;font-size:20px;font-weight:800;color:#342f30">
+            ${
+              isAccept
+                ? '✔ Accept Counter-Offer?'
+                : '✕ Reject Counter-Offer?'
+            }
+          </h2>
+          <p style="font-size:13px;color:#8a7e80;margin:0 0 20px">
+            ${isAccept
+              ? `Your loan rate will change from <strong>${originalPct}%</strong> to <strong style="color:#00373f">${counterPct}%</strong>. The lender can then fund at this rate.`
+              : `The counter-offer of ${counterPct}% will be dismissed. Your original rate of ${originalPct}% remains.`
+            }
+          </p>
+          <div style="display:flex;gap:10px">
+            <button id="lc-dismiss" style="flex:1;padding:12px;border-radius:50px;border:1px solid #E5E7EB;background:white;color:#342f30;font-weight:600;cursor:pointer;font-size:14px">Cancel</button>
+            <button id="lc-confirm" style="flex:1;padding:12px;border-radius:50px;border:none;background:${isAccept ? '#00373f' : '#ba1a1a'};color:white;font-weight:700;cursor:pointer;font-size:14px">
+              ${isAccept ? 'Yes, Accept' : 'Yes, Reject'}
+            </button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      document.getElementById('lc-confirm').onclick = () => { document.body.removeChild(overlay); resolve(true); };
+      document.getElementById('lc-dismiss').onclick  = () => { document.body.removeChild(overlay); resolve(false); };
+    });
+    if (!confirmed) return;
+
+    try {
+      const res = await respondToCounter(loan._id, { action });
+      toast.success(res.data.message || (isAccept ? 'Counter-offer accepted!' : 'Counter-offer rejected.'), { duration: 5000 });
+      fetchLoans();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message || 'Failed to respond');
+    }
+  }
+
   // ── Cancel ─────────────────────────────────────────────
   async function handleCancel(loan) {
     const confirmed = await new Promise((resolve) => {
@@ -559,6 +664,7 @@ export default function LoanHistory() {
               onRepay={handleRepay}
               onLiquidate={handleLiquidate}
               onCancel={handleCancel}
+              onCounterRespond={handleCounterRespond}
               currentUserId={userId}
               ethPrice={ethPrice}
             />

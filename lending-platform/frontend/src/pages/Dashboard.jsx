@@ -114,20 +114,28 @@ export default function Dashboard() {
 
         {/* ── Stats Grid ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 32 }}>
-          <StatCard
-            icon={<TrendingDown size={22} color="#60180b" />}
-            label="Total Borrowed"
-            value={loading ? '…' : fmtUSD(stats?.totalBorrowed || 0)}
-            sub={`${stats?.loansAsBorrower || 0} loans`}
-            color="#60180b"
-          />
-          <StatCard
-            icon={<TrendingUp size={22} color="#00373f" />}
-            label="Total Lent"
-            value={loading ? '…' : fmtUSD(stats?.totalLent || 0)}
-            sub={`${stats?.loansAsLender || 0} loans`}
-            color="#00373f"
-          />
+          {user.role === 'borrower' && (
+            <StatCard
+              icon={<TrendingDown size={28} color="#ffffff" />}
+              label="Total Borrowed"
+              value={loading ? '…' : fmtUSD(stats?.totalBorrowed || 0)}
+              sub={`${stats?.loansAsBorrower || 0} loans`}
+              color="#ffffff"
+              highlight={true}
+              bgGradient="linear-gradient(135deg, #60180b, #815249)"
+            />
+          )}
+          {user.role === 'lender' && (
+            <StatCard
+              icon={<TrendingUp size={28} color="#ffffff" />}
+              label="Total Lent"
+              value={loading ? '…' : fmtUSD(stats?.totalLent || 0)}
+              sub={`${stats?.loansAsLender || 0} loans`}
+              color="#ffffff"
+              highlight={true}
+              bgGradient="linear-gradient(135deg, #002a31, #00373f)"
+            />
+          )}
           <StatCard
             icon={<Activity size={22} color="#c4803a" />}
             label="Active Loans"
@@ -220,56 +228,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* ── ZK Verification Banner ── */}
-        {(() => {
-          const isZkVerified = user?.zkVerified || zkStatus?.verified;
-          return (
-            <div style={{
-              background: isZkVerified
-                ? 'linear-gradient(135deg, rgba(0,55,63,0.08), rgba(0,55,63,0.04))'
-                : 'linear-gradient(135deg, rgba(196,128,58,0.10), rgba(96,24,11,0.06))',
-              border: `1px solid ${isZkVerified ? 'rgba(0,55,63,0.25)' : 'rgba(196,128,58,0.35)'}`,
-              borderRadius: 14, padding: '18px 24px', marginBottom: 24,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              flexWrap: 'wrap', gap: 12,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {isZkVerified
-                  ? <ShieldCheck size={28} color="#00373f" />
-                  : <Shield size={28} color="#c4803a" />
-                }
-                <div>
-                  <p style={{ fontWeight: 700, fontSize: 15, color: '#342f30', marginBottom: 2 }}>
-                    {isZkVerified ? 'Anonymous Identity: Verified ✓' : 'Anonymous Identity: Not Verified'}
-                  </p>
-                  <p style={{ fontSize: 13, color: '#8a7e80' }}>
-                    {isZkVerified
-                      ? `ZK proof active · ${zkStatus?.attestation?.countryCode || 'IN'} · Income & ID attested · Your name stays hidden`
-                      : 'Complete ZK verification to borrow. No documents uploaded — powered by Reclaim Protocol (zkTLS).'}
-                  </p>
-                </div>
-              </div>
-              {!isZkVerified && (
-                <button
-                  className="btn"
-                  style={{ background: '#60180b', color: 'white', fontSize: 13, whiteSpace: 'nowrap' }}
-                  onClick={() => navigate('/zk-verify')}
-                >
-                  <Lock size={14} style={{ marginRight: 6 }} />
-                  Verify Anonymously
-                </button>
-              )}
-              {isZkVerified && (
-                <span style={{
-                  fontSize: 12, color: '#00373f', fontWeight: 700,
-                  background: 'rgba(0,55,63,0.12)', borderRadius: 8, padding: '4px 12px',
-                }}>
-                  Active
-                </span>
-              )}
-            </div>
-          );
-        })()}
 
         {/* ── Settlement Status (borrower only) ── */}
         {user.role === 'borrower' && (
@@ -370,15 +328,15 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ icon, label, value, sub, color }) {
+function StatCard({ icon, label, value, sub, color, highlight, bgGradient }) {
   return (
-    <div className="card" style={{ textAlign: 'left' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <span style={{ fontSize: 12, color: '#8a7e80', fontWeight: 600 }}>{label}</span>
-        <div style={{ background: `${color}15`, borderRadius: 10, padding: 8 }}>{icon}</div>
+    <div className={highlight ? "card-dark" : "card"} style={{ textAlign: 'left', background: bgGradient || undefined }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: highlight ? 16 : 12 }}>
+        <span style={{ fontSize: highlight ? 14 : 12, color: highlight ? 'rgba(255,255,255,0.8)' : '#8a7e80', fontWeight: 600 }}>{label}</span>
+        <div style={{ background: highlight ? 'rgba(255,255,255,0.15)' : `${color}15`, borderRadius: 10, padding: 8 }}>{icon}</div>
       </div>
-      <p style={{ fontSize: 24, fontWeight: 800, color, marginBottom: 4 }}>{value}</p>
-      <p style={{ fontSize: 12, color: '#8a7e80' }}>{sub}</p>
+      <p style={{ fontSize: highlight ? 32 : 24, fontWeight: 800, color, marginBottom: 4 }}>{value}</p>
+      <p style={{ fontSize: highlight ? 14 : 12, color: highlight ? 'rgba(255,255,255,0.6)' : '#8a7e80' }}>{sub}</p>
     </div>
   );
 }

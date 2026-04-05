@@ -46,6 +46,12 @@ export const liquidateLoan = (id, data)     => API.put(`/loans/${id}/liquidate`,
 // DELETE (cancel before funded)
 export const cancelLoan   = (id)   => API.delete(`/loans/${id}`);
 
+// PUT — lender submits a counter interest-rate offer
+export const counterOffer = (id, data) => API.put(`/loans/${id}/counter`, data);
+
+// PUT — borrower accepts or rejects the pending counter-offer
+export const respondToCounter = (id, data) => API.put(`/loans/${id}/counter/respond`, data);
+
 // ── Guarantor API ──────────────────────────────────────────
 // Search LendChain user by MetaMask wallet address
 export const searchGuarantorByWallet = (walletAddress) =>
