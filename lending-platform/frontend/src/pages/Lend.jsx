@@ -28,7 +28,6 @@ function usd(eth, price) {
 function LoanCard({ loan, onFund, ethPrice }) {
   const riskLevel = getRiskLevel(loan.riskScore);
   const interestPct = (loan.interestRateBps / 100).toFixed(1);
-  const profit = loan.principal * loan.interestRateBps / 10000 * loan.durationDays / 365;
 
   return (
     <div className="card" style={{ position: 'relative', overflow: 'hidden' }}>
@@ -110,13 +109,31 @@ function LoanCard({ loan, onFund, ethPrice }) {
         display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
       }}>
         <div>
-          <p style={{ fontSize: 11, color: '#8a7e80' }}>Annual Rate</p>
+          <p style={{ fontSize: 11, color: '#8a7e80' }}>Interest Rate</p>
           <p style={{ fontWeight: 700, color: '#60180b', fontSize: 16 }}>{interestPct}%</p>
+          {ethPrice && (
+            <p style={{ fontSize: 11, color: '#8a7e80' }}>
+              {((loan.principal * ethPrice) * (loan.interestRateBps / 10000)).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })}
+            </p>
+          )}
         </div>
         <div>
-          <p style={{ fontSize: 11, color: '#8a7e80' }}>You earn ~</p>
-          <p style={{ fontWeight: 700, color: '#00373f', fontSize: 16 }}>{usd(profit, ethPrice) || `${profit.toFixed(6)} ETH`}</p>
-          <p style={{ fontSize: 11, color: '#8a7e80' }}>{profit.toFixed(6)} ETH</p>
+          <p style={{ fontSize: 11, color: '#8a7e80' }}>You earn </p>
+          {(() => {
+            const annualInterestEth = loan.principal * loan.interestRateBps / 10000;
+            const totalReturnEth = Number(loan.principal) + annualInterestEth;
+            const totalReturnUsd = ethPrice ? totalReturnEth * ethPrice : null;
+            return (
+              <>
+                <p style={{ fontWeight: 700, color: '#00373f', fontSize: 16 }}>
+                  {totalReturnUsd != null
+                    ? totalReturnUsd.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+                    : `${totalReturnEth.toFixed(6)} ETH`}
+                </p>
+                <p style={{ fontSize: 11, color: '#8a7e80' }}>{totalReturnEth.toFixed(6)} ETH</p>
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -163,8 +180,15 @@ function FundModal({ loan, wallet, onClose, onSuccess, ethPrice }) {
   const navigate = useNavigate();
 
   const interestPct = (loan.interestRateBps / 100).toFixed(1);
-  const profit = loan.principal * loan.interestRateBps / 10000 * loan.durationDays / 365;
-  const totalReturn = Number(loan.principal) + profit;
+  const annualInterestEth = loan.principal * loan.interestRateBps / 10000;
+  const totalReturnEth = Number(loan.principal) + annualInterestEth;
+  const principalUsd = ethPrice ? loan.principal * ethPrice : null;
+  const annualInterestUsd = ethPrice ? annualInterestEth * ethPrice : null;
+  const totalReturnUsd = ethPrice ? totalReturnEth * ethPrice : null;
+
+  function fmtUsd(val) {
+    return val != null ? val.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }) : null;
+  }
 
   async function handleFund() {
     setLoading(true);
@@ -199,10 +223,10 @@ function FundModal({ loan, wallet, onClose, onSuccess, ethPrice }) {
   }
 
   const rows = [
-    ['You send', `${loan.principal} ETH`, usd(loan.principal, ethPrice), '#60180b'],
-    ['Borrower gets', `${loan.principal} ETH`, usd(loan.principal, ethPrice), '#342f30'],
-    [`Interest (${interestPct}%/yr)`, `~${profit.toFixed(6)} ETH`, usd(profit, ethPrice), '#00373f'],
-    ['You receive back', `~${totalReturn.toFixed(6)} ETH`, usd(totalReturn, ethPrice), '#00373f'],
+    ['You send',           fmtUsd(principalUsd)     || `${loan.principal} ETH`,        `${loan.principal} ETH`,           '#60180b'],
+    ['Borrower gets',      fmtUsd(principalUsd)     || `${loan.principal} ETH`,        `${loan.principal} ETH`,           '#342f30'],
+    [`Interest (${interestPct}%)`, fmtUsd(annualInterestUsd) || `${annualInterestEth.toFixed(6)} ETH`, `${annualInterestEth.toFixed(6)} ETH`, '#00373f'],
+    ['You receive back',   fmtUsd(totalReturnUsd)   || `${totalReturnEth.toFixed(6)} ETH`, `${totalReturnEth.toFixed(6)} ETH`, '#00373f'],
   ];
 
   return (
@@ -214,16 +238,16 @@ function FundModal({ loan, wallet, onClose, onSuccess, ethPrice }) {
       <div className="auth-card" style={{ maxWidth: 440, margin: 0 }}>
         <h2 className="auth-title" style={{ marginBottom: 8 }}>Confirm Lending</h2>
         <p className="auth-subtitle" style={{ marginBottom: 24 }}>
-          You're about to send <strong>{loan.principal} ETH</strong>
-          {ethPrice && <> ({usd(loan.principal, ethPrice)})</>} to the smart contract.
+          You're about to send <strong>{fmtUsd(principalUsd) || `${loan.principal} ETH`}</strong>
+          {' '}({loan.principal} ETH) to the smart contract.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
-          {rows.map(([label, val, valUsd, color]) => (
+          {rows.map(([label, val, valEth, color]) => (
             <div key={label} style={{ background: '#fef2f0', borderRadius: 12, padding: '12px 14px' }}>
               <p style={{ fontSize: 11, color: '#8a7e80', marginBottom: 4 }}>{label}</p>
               <p style={{ fontWeight: 700, color, fontSize: 15, margin: 0 }}>{val}</p>
-              {valUsd && <p style={{ fontSize: 11, color: '#8a7e80', margin: 0 }}>{valUsd}</p>}
+              <p style={{ fontSize: 11, color: '#8a7e80', margin: 0 }}>{valEth}</p>
             </div>
           ))}
         </div>
