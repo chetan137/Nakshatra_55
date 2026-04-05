@@ -423,6 +423,102 @@ router.put('/:id/liquidate', verifyToken, async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────────────────
+// PUT /api/loans/:id/counter
+// Auth (lender) — propose a different interest rate
+// Body: { counterRateBps, message?, lenderAddress }
+// ─────────────────────────────────────────────────────────
+router.put('/:id/counter', verifyToken, async (req, res, next) => {
+  try {
+    const { counterRateBps, message = '', lenderAddress } = req.body;
+
+    if (!counterRateBps || isNaN(Number(counterRateBps))) {
+      return res.status(400).json({ success: false, message: 'counterRateBps is required' });
+    }
+    const rateBps = Number(counterRateBps);
+    if (rateBps < 1 || rateBps > 10000) {
+      return res.status(400).json({ success: false, message: 'counterRateBps must be between 1 and 10000 (0.01% – 100%)' });
+    }
+
+    const loan = await Loan.findById(req.params.id);
+    if (!loan) return res.status(404).json({ success: false, message: 'Loan not found' });
+    if (loan.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Can only counter-offer on a pending loan' });
+    }
+    // Borrower cannot counter their own loan
+    if (String(loan.borrower) === String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Borrower cannot counter-offer their own loan' });
+    }
+    // If there is already a pending counter from someone else, reject
+    if (loan.counterOffer?.status === 'pending') {
+      return res.status(409).json({ success: false, message: 'A counter-offer is already pending. Wait for the borrower to respond.' });
+    }
+
+    loan.counterOffer = {
+      rateBps,
+      byAddress:   lenderAddress || null,
+      by:          req.user._id,
+      message:     message.trim().slice(0, 300),
+      status:      'pending',
+      offeredAt:   new Date(),
+      respondedAt: null,
+    };
+    await loan.save();
+
+    await loan.populate(['borrower', 'counterOffer.by']);
+    res.json({ success: true, loan });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─────────────────────────────────────────────────────────
+// PUT /api/loans/:id/counter/respond
+// Auth (borrower) — accept or reject the lender's counter-offer
+// Body: { action: 'accept' | 'reject' }
+// ─────────────────────────────────────────────────────────
+router.put('/:id/counter/respond', verifyToken, async (req, res, next) => {
+  try {
+    const { action } = req.body;
+    if (!['accept', 'reject'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'action must be "accept" or "reject"' });
+    }
+
+    const loan = await Loan.findById(req.params.id);
+    if (!loan) return res.status(404).json({ success: false, message: 'Loan not found' });
+    if (String(loan.borrower) !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Only the borrower can respond to a counter-offer' });
+    }
+    if (loan.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Loan is no longer pending' });
+    }
+    if (!loan.counterOffer || loan.counterOffer.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'No pending counter-offer to respond to' });
+    }
+
+    loan.counterOffer.status      = action === 'accept' ? 'accepted' : 'rejected';
+    loan.counterOffer.respondedAt = new Date();
+
+    if (action === 'accept') {
+      // Lock in the counter-offered rate as the official loan rate
+      loan.interestRateBps = loan.counterOffer.rateBps;
+    }
+
+    await loan.save();
+    await loan.populate(['borrower', 'lender']);
+
+    res.json({
+      success: true,
+      message: action === 'accept'
+        ? `Counter-offer accepted. New rate: ${(loan.interestRateBps / 100).toFixed(2)}%`
+        : 'Counter-offer rejected. Original rate is still active.',
+      loan,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─────────────────────────────────────────────────────────
 // DELETE /api/loans/:id
 // Auth — borrower cancels pending loan
 // ─────────────────────────────────────────────────────────

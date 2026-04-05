@@ -89,6 +89,21 @@ const loanSchema = new mongoose.Schema({
     default: null,
   },
 
+  // ── Rate Negotiation (counter-offer by lender) ────────
+  counterOffer: {
+    rateBps:       { type: Number, default: null },  // lender's proposed rate e.g. 1800 = 18%
+    byAddress:     { type: String, default: null },  // lender's wallet who countered
+    by:            { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    message:       { type: String, default: '' },    // optional note from lender
+    status: {
+      type: String,
+      enum: ['none', 'pending', 'accepted', 'rejected'],
+      default: 'none',
+    },
+    offeredAt:     { type: Date, default: null },
+    respondedAt:   { type: Date, default: null },
+  },
+
   createdAt: { type: Date, default: Date.now },
 });
 

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wallet, TrendingUp, Shield, Clock, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Wallet, TrendingUp, Shield, Clock, AlertTriangle, CheckCircle, RefreshCw, Percent, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useWallet } from '../hooks/useWallet';
-import { getAvailable, fundLoan as fundLoanAPI } from '../api/loanApi';
+import { getAvailable, fundLoan as fundLoanAPI, counterOffer as counterOfferAPI } from '../api/loanApi';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
@@ -25,9 +25,10 @@ function usd(eth, price) {
   return (eth * price).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 }
 
-function LoanCard({ loan, onFund, ethPrice }) {
+function LoanCard({ loan, onFund, onCounter, ethPrice }) {
   const riskLevel = getRiskLevel(loan.riskScore);
   const interestPct = (loan.interestRateBps / 100).toFixed(1);
+  const hasActivePendingCounter = loan.counterOffer?.status === 'pending';
 
   return (
     <div className="card" style={{ position: 'relative', overflow: 'hidden' }}>
@@ -89,6 +90,21 @@ function LoanCard({ loan, onFund, ethPrice }) {
               No document uploaded
             </span>
           )}
+        </div>
+      )}
+
+      {/* Pending counter-offer badge */}
+      {hasActivePendingCounter && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(196,128,58,0.12), rgba(96,24,11,0.08))',
+          border: '1px solid rgba(196,128,58,0.4)',
+          borderRadius: 10, padding: '10px 14px', marginBottom: 16,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <Percent size={14} color="#c4803a" />
+          <span style={{ fontSize: 12, color: '#815249', fontWeight: 700 }}>
+            Counter-offer pending: {(loan.counterOffer.rateBps / 100).toFixed(1)}% — awaiting borrower’s response
+          </span>
         </div>
       )}
 
@@ -154,9 +170,22 @@ function LoanCard({ loan, onFund, ethPrice }) {
         </div>
       </div>
 
-      <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => onFund(loan)}>
-        <Wallet size={16} /> Fund This Loan
-      </button>
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          className="btn btn-secondary"
+          style={{ flex: 1, fontSize: 13, padding: '10px 12px' }}
+          onClick={() => onCounter(loan)}
+          disabled={hasActivePendingCounter}
+          title={hasActivePendingCounter ? 'Counter-offer already pending' : 'Propose a different interest rate'}
+        >
+          <Percent size={14} />
+          {hasActivePendingCounter ? 'Counter Sent' : 'Counter Rate'}
+        </button>
+        <button className="btn btn-primary" style={{ flex: 1, fontSize: 13 }} onClick={() => onFund(loan)}>
+          <Wallet size={14} /> Fund Loan
+        </button>
+      </div>
     </div>
   );
 }
@@ -170,6 +199,171 @@ function Stat({ icon, label, value, sub, accent, color }) {
       </div>
       <p style={{ fontWeight: 700, fontSize: 15, color: color || (accent ? '#60180b' : '#342f30'), margin: 0 }}>{value}</p>
       {sub && <p style={{ fontSize: 11, color: '#8a7e80', margin: 0 }}>{sub}</p>}
+    </div>
+  );
+}
+
+// ── Counter-Rate Modal (Lender proposes a new rate) ───────────
+function CounterModal({ loan, wallet, onClose, onSuccess, ethPrice }) {
+  const [rateInput, setRateInput] = useState('');
+  const [message,   setMessage]   = useState('');
+  const [loading,   setLoading]   = useState(false);
+
+  const ratePct     = parseFloat(rateInput) || 0;
+  const rateBps     = Math.round(ratePct * 100);
+  const valid       = ratePct > 0 && ratePct <= 100;
+
+  const annualInterestEth = valid ? loan.principal * rateBps / 10000 : 0;
+  const totalReturnEth    = Number(loan.principal) + annualInterestEth;
+  const totalReturnUsd    = ethPrice ? totalReturnEth * ethPrice : null;
+  const borrowerOrigPct   = (loan.interestRateBps / 100).toFixed(2);
+
+  function fmtUsd(val) {
+    return val != null ? val.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }) : null;
+  }
+
+  async function handleSubmit() {
+    if (!valid) return toast.error('Enter a valid rate between 0.01% and 100%');
+    setLoading(true);
+    try {
+      const addr = wallet.account || await wallet.connect();
+      if (!addr) { setLoading(false); return; }
+
+      await counterOfferAPI(loan._id, {
+        counterRateBps: rateBps,
+        message:        message.trim(),
+        lenderAddress:  addr,
+      });
+      toast.success(`Counter-offer sent! Borrower will see ${ratePct.toFixed(2)}% and can accept or reject.`, { duration: 5000 });
+      onSuccess();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message || 'Failed to send counter-offer');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 999, padding: 24,
+    }}>
+      <div className="auth-card" style={{ maxWidth: 460, margin: 0 }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <div style={{ background: 'linear-gradient(135deg,#c4803a,#815249)', borderRadius: 10, padding: 8 }}>
+            <Percent size={18} color="white" />
+          </div>
+          <div>
+            <h2 className="auth-title" style={{ margin: 0, fontSize: 20 }}>Counter-Offer Rate</h2>
+            <p style={{ fontSize: 12, color: '#8a7e80', margin: 0 }}>Propose your preferred interest rate</p>
+          </div>
+        </div>
+
+        {/* Borrower’s original rate chip */}
+        <div style={{
+          background: '#fef2f0', border: '1px solid rgba(96,24,11,0.15)',
+          borderRadius: 10, padding: '10px 14px', marginTop: 16, marginBottom: 20,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 13, color: '#8a7e80' }}>Borrower’s requested rate</span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: '#60180b' }}>{borrowerOrigPct}%</span>
+        </div>
+
+        {/* Rate input */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, color: '#342f30', display: 'block', marginBottom: 6 }}>
+            Your Counter Rate (% annual)
+          </label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="number"
+              min="0.01" max="100" step="0.01"
+              placeholder="e.g. 18.5"
+              value={rateInput}
+              onChange={e => setRateInput(e.target.value)}
+              style={{
+                width: '100%', padding: '12px 40px 12px 14px',
+                border: `2px solid ${valid && rateInput ? '#c4803a' : '#E5E7EB'}`,
+                borderRadius: 12, fontSize: 18, fontWeight: 700,
+                color: '#342f30', outline: 'none', boxSizing: 'border-box',
+                transition: 'border 0.2s',
+              }}
+              onFocus={e => e.target.style.borderColor = '#c4803a'}
+              onBlur={e => e.target.style.borderColor = valid && rateInput ? '#c4803a' : '#E5E7EB'}
+            />
+            <span style={{
+              position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+              fontSize: 16, fontWeight: 700, color: '#8a7e80',
+            }}>%</span>
+          </div>
+        </div>
+
+        {/* Live earnings preview */}
+        {valid && rateInput && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(0,55,63,0.06), rgba(0,55,63,0.03))',
+            border: '1px solid rgba(0,55,63,0.15)',
+            borderRadius: 12, padding: '14px', marginBottom: 16,
+          }}>
+            <p style={{ fontSize: 11, color: '#8a7e80', marginBottom: 10, fontWeight: 600 }}>AT YOUR RATE YOU EARN</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <p style={{ fontSize: 11, color: '#8a7e80' }}>Interest</p>
+                <p style={{ fontWeight: 700, color: '#00373f', fontSize: 15 }}>
+                  {fmtUsd(ethPrice ? annualInterestEth * ethPrice : null) || `${annualInterestEth.toFixed(6)} ETH`}
+                </p>
+                <p style={{ fontSize: 11, color: '#8a7e80' }}>{annualInterestEth.toFixed(6)} ETH</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 11, color: '#8a7e80' }}>Total Return</p>
+                <p style={{ fontWeight: 800, color: '#00373f', fontSize: 15 }}>
+                  {fmtUsd(totalReturnUsd) || `${totalReturnEth.toFixed(6)} ETH`}
+                </p>
+                <p style={{ fontSize: 11, color: '#8a7e80' }}>{totalReturnEth.toFixed(6)} ETH</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Optional message */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, color: '#342f30', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <MessageSquare size={13} /> Note to borrower (optional)
+          </label>
+          <textarea
+            placeholder="Explain why you prefer this rate…"
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            maxLength={300}
+            rows={2}
+            style={{
+              width: '100%', padding: '10px 14px', border: '1px solid #E5E7EB',
+              borderRadius: 10, fontSize: 13, color: '#342f30', resize: 'vertical',
+              outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+            }}
+            onFocus={e => e.target.style.borderColor = '#c4803a'}
+            onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+          />
+          <p style={{ fontSize: 11, color: '#8a7e80', textAlign: 'right', marginTop: 2 }}>{message.length}/300</p>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose} disabled={loading}>Cancel</button>
+          <button
+            className="btn"
+            style={{ flex: 2, background: 'linear-gradient(135deg,#c4803a,#815249)', color: 'white' }}
+            onClick={handleSubmit}
+            disabled={loading || !valid}
+          >
+            {loading
+              ? <><div className="spinner spinner-sm" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} /> Sending…</>
+              : <><Percent size={15} /> Send Counter-Offer</>
+            }
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -272,7 +466,8 @@ export default function Lend() {
   const { user } = useAuth();
   const wallet = useWallet();
   const [loans, setLoans] = useState([]);
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(null);        // loan for Fund modal
+  const [counterLoan, setCounterLoan] = useState(null); // loan for Counter modal
   const [loading, setLoading] = useState(true);
   const [ethPrice, setEthPrice] = useState(null);
 
@@ -349,7 +544,13 @@ export default function Lend() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 24 }}>
             {loans.map(loan => (
-              <LoanCard key={loan._id} loan={loan} onFund={setSelected} ethPrice={ethPrice} />
+              <LoanCard
+                key={loan._id}
+                loan={loan}
+                onFund={setSelected}
+                onCounter={setCounterLoan}
+                ethPrice={ethPrice}
+              />
             ))}
           </div>
         )}
@@ -362,6 +563,16 @@ export default function Lend() {
           ethPrice={ethPrice}
           onClose={() => setSelected(null)}
           onSuccess={() => { setSelected(null); fetchLoans(); }}
+        />
+      )}
+
+      {counterLoan && (
+        <CounterModal
+          loan={counterLoan}
+          wallet={wallet}
+          ethPrice={ethPrice}
+          onClose={() => setCounterLoan(null)}
+          onSuccess={() => { setCounterLoan(null); fetchLoans(); }}
         />
       )}
     </div>
