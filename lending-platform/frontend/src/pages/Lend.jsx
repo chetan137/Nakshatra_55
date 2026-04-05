@@ -28,7 +28,6 @@ function usd(eth, price) {
 function LoanCard({ loan, onFund, ethPrice }) {
   const riskLevel = getRiskLevel(loan.riskScore);
   const interestPct = (loan.interestRateBps / 100).toFixed(1);
-  const ratio = loan.collateralRatio || ((loan.collateral / loan.principal) * 100).toFixed(0);
   const profit = loan.principal * loan.interestRateBps / 10000 * loan.durationDays / 365;
 
   return (
@@ -97,15 +96,9 @@ function LoanCard({ loan, onFund, ethPrice }) {
       {/* Stats grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
         <Stat icon={<TrendingUp size={14} color="#60180b" />} label="Loan Amount"
-          value={`${loan.principal} ETH`}
-          sub={usd(loan.principal, ethPrice)}
+          value={usd(loan.principal, ethPrice) || `${loan.principal} ETH`}
+          sub={`${loan.principal} ETH`}
           accent />
-        <Stat icon={<Shield size={14} color="#00373f" />} label="Collateral"
-          value={`${loan.collateral} ETH`}
-          sub={usd(loan.collateral, ethPrice)} />
-        <Stat icon={<div style={{ fontSize: 12 }}>%</div>} label="Collateral Ratio"
-          value={`${Number(ratio).toFixed(0)}%`}
-          color={Number(ratio) >= 150 ? '#00373f' : '#ba1a1a'} />
         <Stat icon={<Clock size={14} color="#c4803a" />} label="Duration"
           value={`${loan.durationDays} days`} />
       </div>
@@ -122,10 +115,8 @@ function LoanCard({ loan, onFund, ethPrice }) {
         </div>
         <div>
           <p style={{ fontSize: 11, color: '#8a7e80' }}>You earn ~</p>
-          <p style={{ fontWeight: 700, color: '#00373f', fontSize: 16 }}>{profit.toFixed(6)} ETH</p>
-          {ethPrice && (
-            <p style={{ fontSize: 11, color: '#8a7e80' }}>{usd(profit, ethPrice)}</p>
-          )}
+          <p style={{ fontWeight: 700, color: '#00373f', fontSize: 16 }}>{usd(profit, ethPrice) || `${profit.toFixed(6)} ETH`}</p>
+          <p style={{ fontSize: 11, color: '#8a7e80' }}>{profit.toFixed(6)} ETH</p>
         </div>
       </div>
 
