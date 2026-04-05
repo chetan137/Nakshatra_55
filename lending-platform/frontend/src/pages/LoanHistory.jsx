@@ -14,7 +14,7 @@ const STATUS_CONFIG = {
 };
 
 // ── LoanRow ──────────────────────────────────────────────────
-function LoanRow({ loan, onRepay, onLiquidate, onCancel, currentUserId }) {
+function LoanRow({ loan, onRepay, onLiquidate, onCancel, currentUserId, ethPrice }) {
   const cfg        = STATUS_CONFIG[loan.status] || STATUS_CONFIG.pending;
   const isBorrower = String(loan.borrower?._id || loan.borrower) === currentUserId;
   const isActive   = loan.status === 'active';
@@ -39,6 +39,14 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, currentUserId }) {
 
   const sepolia = 'https://sepolia.etherscan.io/tx/';
 
+  const fmtUsd = (eth) => ethPrice
+    ? (eth * ethPrice).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+    : null;
+
+  const principalUsd = fmtUsd(loan.principal);
+  const totalRepaymentEth = loan.principal * (1 + loan.interestRateBps / 10000);
+  const totalRepaymentUsd = fmtUsd(totalRepaymentEth);
+
   return (
     <div className="card" style={{ marginBottom: 16, borderLeft: `4px solid ${cfg.color}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
@@ -54,9 +62,38 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, currentUserId }) {
             }}>
               {cfg.icon} {cfg.label}
             </span>
-            <span style={{ fontSize: 12, color: '#8a7e80' }}>
-              {isBorrower ? '📤 You borrowed' : '📥 You lent'}
-            </span>
+            {/* Transaction type based on role and status */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', fontSize: 12 }}>
+              {isBorrower ? (
+                <>
+                  <span style={{ color: '#00373f', fontWeight: 600 }}>
+                    📥 You received {principalUsd || `${loan.principal} ETH`}
+                  </span>
+                  {(loan.status === 'repaid' || loan.status === 'active') && (
+                    <>
+                      <span style={{ color: '#8a7e80' }}>•</span>
+                      <span style={{ color: '#815249', fontWeight: 600 }}>
+                        📤 You sent {totalRepaymentUsd || `${totalRepaymentEth.toFixed(6)} ETH`}
+                      </span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span style={{ color: '#815249', fontWeight: 600 }}>
+                    📤 You sent {principalUsd || `${loan.principal} ETH`}
+                  </span>
+                  {(loan.status === 'repaid') && (
+                    <>
+                      <span style={{ color: '#8a7e80' }}>•</span>
+                      <span style={{ color: '#00373f', fontWeight: 600 }}>
+                        📥 You received {totalRepaymentUsd || `${totalRepaymentEth.toFixed(6)} ETH`}
+                      </span>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
             {isOverdue && (
               <span style={{ background: '#fde8e8', color: '#ba1a1a', borderRadius: 50, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
                 ⚠️ Overdue
@@ -78,9 +115,8 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, currentUserId }) {
 
           {/* Data grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '4px 24px', fontSize: 14 }}>
-            <Info label="Principal"  value={`${loan.principal} ETH`} bold accent />
-            <Info label="Collateral" value={`${loan.collateral} ETH`} />
-            <Info label="Rate"       value={`${interestPct}%/yr`} />
+            <Info label="Principal"  value={principalUsd || `${loan.principal} ETH`} sub={`${loan.principal} ETH`} bold accent />
+            <Info label="Rate"       value={`${interestPct}%`} />
             <Info label="Duration"   value={`${loan.durationDays} days`} />
             {daysLeft !== null && isActive && (
               <Info label="Days left" value={isOverdue ? '⚠️ OVERDUE' : `${daysLeft}d`}
@@ -158,11 +194,12 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, currentUserId }) {
   );
 }
 
-function Info({ label, value, bold, accent, color }) {
+function Info({ label, value, sub, bold, accent, color }) {
   return (
     <div>
       <span style={{ fontSize: 11, color: '#8a7e80', display: 'block' }}>{label}</span>
       <span style={{ fontWeight: bold ? 700 : 500, color: color || (accent ? '#60180b' : '#342f30'), fontSize: 14 }}>{value}</span>
+      {sub && <span style={{ fontSize: 11, color: '#8a7e80', display: 'block' }}>{sub}</span>}
     </div>
   );
 }
@@ -175,6 +212,7 @@ export default function LoanHistory() {
   const [loading, setLoading] = useState(true);
   const [filter,  setFilter]  = useState('all');
   const [userId,  setUserId]  = useState(null);
+  const [ethPrice, setEthPrice] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem('lendchain_token');
@@ -185,6 +223,13 @@ export default function LoanHistory() {
       } catch { /* ignore */ }
     }
     fetchLoans();
+
+    // Fetch ETH price
+    const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
+    fetch(`${API_BASE}/api/eth-price`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setEthPrice(d.usd); })
+      .catch(() => {});
   }, []);
 
   async function fetchLoans() {
@@ -515,6 +560,7 @@ export default function LoanHistory() {
               onLiquidate={handleLiquidate}
               onCancel={handleCancel}
               currentUserId={userId}
+              ethPrice={ethPrice}
             />
           ))
         )}
