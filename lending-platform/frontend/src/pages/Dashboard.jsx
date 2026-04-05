@@ -71,8 +71,43 @@ export default function Dashboard() {
     <div className="page-dashboard">
       {/* ── Sidebar ── */}
       <aside className="dash-sidebar">
-        <div className="dash-sidebar-logo">
-          <span style={{ color: '#815249' }}>⬡</span> Go Secure
+        <div
+          className="dash-sidebar-logo"
+          onClick={() => navigate('/')}
+          style={{
+            cursor: 'pointer',
+            padding: '14px 16px',
+            background: 'linear-gradient(135deg, rgba(248, 243, 243, 0.97), rgba(76, 233, 214, 0.02))',
+            borderRadius: '12px',
+            marginBottom: '32px',
+            border: '1px solid rgba(96, 24, 11, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            color: 'black',
+            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 12px rgba(96, 24, 11, 0.08)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none' }}
+          title="Go to Home Page"
+        >
+          <div style={{
+            background: 'linear-gradient(135deg, #60180b, #815249)',
+            borderRadius: '10px',
+            width: '38px',
+            height: '38px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'black',
+            boxShadow: '0 4px 10px rgba(240, 225, 222, 0.3)'
+          }}>
+            <ShieldCheck size={20} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontWeight: 800, fontSize: '18px', color: '#100f0fff', letterSpacing: '-0.3px', lineHeight: '1.2' }}>Go Secure</span>
+            <span style={{ fontSize: '11px', color: '#60180b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>← Back to Home</span>
+          </div>
         </div>
         <nav className="dash-sidebar-nav">
           {navItems.map(item => (
