@@ -44,7 +44,15 @@ const authLimiter = rateLimit({
 
 // ── Middleware ─────────────────────────────────────────────
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173')
+      .replace(/\/$/, ''); // strip trailing slash
+    if (!origin || origin.replace(/\/$/, '') === allowed) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked: ${origin}`));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());

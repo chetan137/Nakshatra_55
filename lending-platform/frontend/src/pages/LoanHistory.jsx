@@ -66,9 +66,9 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, onCounterRespond, curre
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 15 }}>
               {isBorrower ? (
                 <>
-                  <span style={{ color: '#00373f', fontWeight: 600 }}>
+                  {/* <span style={{ color: '#00373f', fontWeight: 600 }}>
                     📥 You received {principalUsd || `${loan.principal} ETH`}
-                  </span>
+                  </span> */}
                   {(loan.status === 'repaid' || loan.status === 'active') && (
                     <>
                       <span style={{ color: '#8a7e80' }}>•</span>
