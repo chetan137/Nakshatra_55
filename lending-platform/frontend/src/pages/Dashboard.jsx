@@ -172,14 +172,14 @@ export default function Dashboard() {
             />
           )}
           <StatCard
-            icon={<Activity size={22} color="#c4803a" />}
+            icon={<Activity size={28} color="#c4803a" />}
             label="Active Loans"
             value={loading ? '…' : (stats?.activeBorrowed || 0) + (stats?.activeLent || 0)}
             sub={`${stats?.activeBorrowed || 0} borrowing · ${stats?.activeLent || 0} lending`}
             color="#c4803a"
           />
           <StatCard
-            icon={<CheckCircle size={22} color="#00373f" />}
+            icon={<CheckCircle size={28} color="#00373f" />}
             label="Successfully Repaid"
             value={loading ? '…' : stats?.repaid || 0}
             sub={stats?.defaulted ? `${stats.defaulted} defaulted` : 'No defaults'}
@@ -366,12 +366,12 @@ export default function Dashboard() {
 function StatCard({ icon, label, value, sub, color, highlight, bgGradient }) {
   return (
     <div className={highlight ? "card-dark" : "card"} style={{ textAlign: 'left', background: bgGradient || undefined }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: highlight ? 16 : 12 }}>
-        <span style={{ fontSize: highlight ? 14 : 12, color: highlight ? 'rgba(255,255,255,0.8)' : '#8a7e80', fontWeight: 600 }}>{label}</span>
-        <div style={{ background: highlight ? 'rgba(255,255,255,0.15)' : `${color}15`, borderRadius: 10, padding: 8 }}>{icon}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: highlight ? 18 : 16 }}>
+        <span style={{ fontSize: highlight ? 16 : 14, color: highlight ? 'rgba(255,255,255,0.8)' : '#8a7e80', fontWeight: 700 }}>{label}</span>
+        <div style={{ background: highlight ? 'rgba(255,255,255,0.15)' : `${color}15`, borderRadius: '12px', padding: '10px' }}>{icon}</div>
       </div>
-      <p style={{ fontSize: highlight ? 32 : 24, fontWeight: 800, color, marginBottom: 4 }}>{value}</p>
-      <p style={{ fontSize: highlight ? 14 : 12, color: highlight ? 'rgba(255,255,255,0.6)' : '#8a7e80' }}>{sub}</p>
+      <p style={{ fontSize: highlight ? 36 : 32, fontWeight: 800, color, marginBottom: 8 }}>{value}</p>
+      <p style={{ fontSize: highlight ? 15 : 14, color: highlight ? 'rgba(255,255,255,0.6)' : '#8a7e80', fontWeight: 600 }}>{sub}</p>
     </div>
   );
 }
