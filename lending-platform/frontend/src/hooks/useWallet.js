@@ -271,9 +271,11 @@ export function useWallet() {
       const switched = await switchToSepolia();
       if (!switched) throw new Error('Please switch to Sepolia testnet.');
     }
+    // Convert to wei safely — avoid scientific notation (e.g. 4.8e-4) which parseEther rejects
+    const amountStr = Number(amountEth).toFixed(18).replace(/\.?0+$/, '') || '0';
     const tx = await s.sendTransaction({
       to: toAddress,
-      value: ethers.parseEther(String(amountEth)),
+      value: ethers.parseEther(amountStr),
     });
     const receipt = await tx.wait();
     if (receipt.status === 0) throw new Error('ETH transfer failed on-chain');

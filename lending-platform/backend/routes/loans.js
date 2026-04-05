@@ -260,10 +260,10 @@ router.get('/:id/owed', verifyToken, async (req, res, next) => {
     }
 
     if (loan.onChainId === null) {
-      // Fallback: calculate off-chain (less accurate — no real-time price)
-      const elapsed = (Date.now() - new Date(loan.startDate).getTime()) / 1000;
-      const interest = (loan.principal * loan.interestRateBps * elapsed) / (10000 * 365 * 24 * 3600);
-      return res.json({ success: true, totalOwedEth: (loan.principal + interest).toFixed(8), source: 'offchain' });
+      // Guarantor loan: charge full agreed term interest (borrower agreed to this duration upfront)
+      const fullTermSecs = loan.durationDays * 24 * 3600;
+      const interest = (loan.principal * loan.interestRateBps * fullTermSecs) / (10000 * 365 * 24 * 3600);
+      return res.json({ success: true, totalOwedEth: (loan.principal + interest).toFixed(18).replace(/\.?0+$/, ''), source: 'offchain' });
     }
 
     // Fetch live from chain (accounts for exact elapsed seconds)

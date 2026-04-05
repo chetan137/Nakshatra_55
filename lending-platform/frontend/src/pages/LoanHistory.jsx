@@ -264,19 +264,85 @@ export default function LoanHistory() {
           return toast.error('Lender wallet address not found — cannot send repayment.');
         }
 
-        // Calculate owed: principal + simple interest
-        const elapsedDays = loan.startDate
-          ? (Date.now() - new Date(loan.startDate).getTime()) / 86400000
-          : loan.durationDays;
-        const totalOwedETH = (
-          loan.principal * (1 + (loan.interestRateBps / 10000) * (elapsedDays / 365))
-        ).toFixed(8);
+        const addr = wallet.account || await wallet.connect();
+        if (!addr) return;
 
-        toast(
-          `MetaMask will send ${Number(totalOwedETH).toFixed(6)} ETH directly to lender (${lenderAddr.slice(0,6)}…${lenderAddr.slice(-4)})`,
-          { icon: '💸', duration: 6000 }
-        );
+        // Charge interest for the FULL agreed duration (not just elapsed time).
+        // Borrower agreed to the loan term upfront — they owe the full term's interest.
+        const principal      = Number(loan.principal);
+        const rateBps        = Number(loan.interestRateBps);
+        const fullTermSecs   = Number(loan.durationDays) * 86400;
+        const interest       = (principal * rateBps * fullTermSecs) / (10000 * 365 * 86400);
+        const totalOwed      = principal + interest;
 
+        // Also track actual elapsed for display only
+        const elapsedSecs    = loan.startDate
+          ? (Date.now() - new Date(loan.startDate).getTime()) / 1000
+          : fullTermSecs;
+        const maxInterest    = interest; // same — full term IS the max
+
+        // Fetch ETH price for USD display
+        let ethPrice = null;
+        try {
+          const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
+          const r = await fetch(`${API_BASE}/api/eth-price`);
+          const d = await r.json();
+          if (d.success) ethPrice = d.usd;
+        } catch { /* non-fatal */ }
+
+        const fmt = (eth) => {
+          if (eth === 0) return '0 ETH';
+          if (eth < 0.000001) return `${(eth * 1e8).toFixed(4)} × 10⁻⁸ ETH`;
+          if (eth < 0.0001)   return `${eth.toFixed(8)} ETH`;
+          return `${eth.toFixed(6)} ETH`;
+        };
+        const usdFmt = (eth) => ethPrice
+          ? ` (~$${(eth * ethPrice).toFixed(4)})`
+          : '';
+
+        const totalOwedETH = totalOwed.toFixed(18).replace(/\.?0+$/, '') || String(totalOwed);
+
+        // Show proper modal instead of toast
+        const confirmed = await new Promise((resolve) => {
+          const overlay = document.createElement('div');
+          overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:9999;padding:24px';
+          overlay.innerHTML = `
+            <div style="background:white;border-radius:20px;padding:28px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+              <h2 style="margin:0 0 6px;font-size:20px;font-weight:800;color:#342f30">Confirm Repayment</h2>
+              <p style="margin:0 0 20px;font-size:13px;color:#8a7e80">Sending ETH directly to lender's wallet</p>
+
+              <div style="display:grid;gap:10px;margin-bottom:20px">
+                <div style="background:#fef2f0;border-radius:12px;padding:14px">
+                  <div style="font-size:11px;color:#8a7e80;margin-bottom:4px">Principal</div>
+                  <div style="font-weight:700;color:#60180b;font-size:16px">${fmt(principal)}</div>
+                  <div style="font-size:11px;color:#8a7e80">${usdFmt(principal)}</div>
+                </div>
+                <div style="background:#fef2f0;border-radius:12px;padding:14px">
+                  <div style="font-size:11px;color:#8a7e80;margin-bottom:4px">
+                    Interest (${(rateBps / 100).toFixed(1)}%/yr × ${loan.durationDays} days agreed term)
+                  </div>
+                  <div style="font-weight:700;color:#815249;font-size:15px">${fmt(interest)}</div>
+                  <div style="font-size:11px;color:#8a7e80">${usdFmt(interest)}</div>
+                </div>
+                <div style="background:#e6f0ef;border-radius:12px;padding:14px;border:2px solid #00373f">
+                  <div style="font-size:11px;color:#00373f;margin-bottom:4px;font-weight:600">TOTAL YOU SEND</div>
+                  <div style="font-weight:800;color:#00373f;font-size:18px">${fmt(totalOwed)}</div>
+                  <div style="font-size:11px;color:#8a7e80">${usdFmt(totalOwed)} → ${lenderAddr.slice(0,6)}…${lenderAddr.slice(-4)}</div>
+                </div>
+              </div>
+
+              <div style="display:flex;gap:10px">
+                <button id="lc-cancel-repay" style="flex:1;padding:12px;border-radius:50px;border:1px solid #E5E7EB;background:white;color:#342f30;font-weight:600;cursor:pointer;font-size:14px">Cancel</button>
+                <button id="lc-confirm-repay" style="flex:1;padding:12px;border-radius:50px;border:none;background:#60180b;color:white;font-weight:700;cursor:pointer;font-size:14px">Confirm & Send</button>
+              </div>
+            </div>`;
+          document.body.appendChild(overlay);
+          document.getElementById('lc-confirm-repay').onclick = () => { document.body.removeChild(overlay); resolve(true); };
+          document.getElementById('lc-cancel-repay').onclick  = () => { document.body.removeChild(overlay); resolve(false); };
+        });
+        if (!confirmed) return;
+
+        toast(`Sending ${Number(totalOwedETH).toFixed(6)} ETH to lender via MetaMask…`, { icon: '💸', duration: 8000 });
         const txHash = await wallet.sendEthDirect(lenderAddr, totalOwedETH);
 
         toast('Updating records…', { icon: '💾' });
