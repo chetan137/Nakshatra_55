@@ -17,8 +17,9 @@ export default function Dashboard() {
   const navigate         = useNavigate();
   const wallet           = useWallet();
   const { zkStatus, checkStatus } = useZkProof();
-  const [stats,   setStats]   = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [stats,    setStats]    = useState(null);
+  const [loading,  setLoading]  = useState(true);
+  const [ethPrice, setEthPrice] = useState(3000);
   const [activeNav, setActiveNav] = useState('dashboard');
 
   useEffect(() => {
@@ -27,7 +28,16 @@ export default function Dashboard() {
       .catch(() => {})
       .finally(() => setLoading(false));
     if (token) checkStatus(token);
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
+      .then(r => r.json())
+      .then(d => { if (d?.ethereum?.usd) setEthPrice(d.ethereum.usd); })
+      .catch(() => {});
   }, [token, checkStatus]);
+
+  function fmtUSD(ethVal) {
+    const usd = (parseFloat(ethVal) || 0) * ethPrice;
+    return '$' + usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
 
   function handleLogout() {
     logout();
@@ -49,12 +59,6 @@ export default function Dashboard() {
     ...(user.role === 'borrower' ? [{ id: 'borrow', label: 'Borrow', icon: <TrendingDown size={18} />, action: () => navigate('/borrow') }] : []),
     ...(user.role === 'lender' ? [{ id: 'lend', label: 'Lend', icon: <TrendingUp size={18} />, action: () => navigate('/lend') }] : []),
     { id: 'history',   label: 'History',   icon: <History size={18} />,      action: () => navigate('/history') },
-    {
-      id: 'zk-verify',
-      label: isZkVerified ? 'ZK Verified ✓' : 'ZK Verify',
-      icon: isZkVerified ? <ShieldCheck size={18} /> : <Shield size={18} />,
-      action: () => navigate('/zk-verify'),
-    },
     {
       id: 'guarantor-inbox',
       label: 'Guarantor Inbox',
@@ -113,14 +117,14 @@ export default function Dashboard() {
           <StatCard
             icon={<TrendingDown size={22} color="#60180b" />}
             label="Total Borrowed"
-            value={loading ? '…' : `${stats?.totalBorrowed?.toFixed(4) || '0.0000'} ETH`}
+            value={loading ? '…' : fmtUSD(stats?.totalBorrowed || 0)}
             sub={`${stats?.loansAsBorrower || 0} loans`}
             color="#60180b"
           />
           <StatCard
             icon={<TrendingUp size={22} color="#00373f" />}
             label="Total Lent"
-            value={loading ? '…' : `${stats?.totalLent?.toFixed(4) || '0.0000'} ETH`}
+            value={loading ? '…' : fmtUSD(stats?.totalLent || 0)}
             sub={`${stats?.loansAsLender || 0} loans`}
             color="#00373f"
           />
@@ -150,7 +154,7 @@ export default function Dashboard() {
                 Need Funds?
               </h3>
               <p style={{ color: '#d4b8b3', marginBottom: 20, fontSize: 14 }}>
-                Deposit crypto collateral and get ETH instantly. Smart contract handles everything.
+                Deposit crypto collateral and get funds instantly. Smart contract handles everything.
               </p>
               <button className="btn btn-accent" onClick={() => navigate('/borrow')}>
                 <Plus size={16} /> Request Loan <ChevronRight size={16} />
