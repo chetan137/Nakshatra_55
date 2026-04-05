@@ -147,21 +147,25 @@ export default function Borrow() {
         {!settlementLoad && settlement && !settlement.canRequestNewLoan ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Red alert */}
+            {/* Red alert — light palette, works on white auth-card */}
             <div style={{
-              background: 'rgba(186,26,26,0.15)',
-              border: '1.5px solid rgba(186,26,26,0.5)',
-              borderRadius: 16, padding: '20px 22px',
+              background: '#fff0f0',
+              border: '1.5px solid rgba(186,26,26,0.35)',
+              borderRadius: 16, padding: '18px 20px',
               display: 'flex', alignItems: 'flex-start', gap: 14,
             }}>
-              <XCircle size={28} color="#ff6b6b" style={{ flexShrink: 0, marginTop: 2 }} />
+              <XCircle size={26} color="#ba1a1a" style={{ flexShrink: 0, marginTop: 2 }} />
               <div>
-                <p style={{ fontWeight: 800, fontSize: 17, color: '#fff', marginBottom: 6 }}>
+                <p style={{ fontWeight: 800, fontSize: 16, color: '#342f30', marginBottom: 4 }}>
                   Loan Limit Reached
                 </p>
-                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-                  You already have <strong style={{ color: '#ff6b6b' }}>{settlement.activeLoanCount} active / pending loans</strong>.
-                  The maximum is <strong style={{ color: '#fff' }}>2</strong>. Repay at least one loan before requesting a new one.
+                <p style={{ fontSize: 13, color: '#815249', lineHeight: 1.6 }}>
+                  You already have{' '}
+                  <strong style={{ color: '#ba1a1a' }}>
+                    {settlement.activeLoanCount} active / pending loans
+                  </strong>.{' '}
+                  The maximum is <strong style={{ color: '#342f30' }}>2</strong>.{' '}
+                  Repay at least one loan before requesting a new one.
                 </p>
               </div>
             </div>
@@ -169,43 +173,81 @@ export default function Borrow() {
             {/* Active loans list */}
             {settlement.activeLoans?.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                <p style={{
+                  fontSize: 11, fontWeight: 700, color: '#8a7e80',
+                  textTransform: 'uppercase', letterSpacing: 1,
+                }}>
                   Your Current Loans
                 </p>
                 {settlement.activeLoans.map((loan, i) => (
                   <div key={loan._id} style={{
-                    background: 'rgba(255,255,255,0.07)',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    borderRadius: 13, padding: '14px 16px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                    background: loan.status === 'active'
+                      ? 'rgba(0,55,63,0.04)'
+                      : 'rgba(196,128,58,0.05)',
+                    border: `1.5px solid ${loan.status === 'active'
+                      ? 'rgba(0,55,63,0.18)'
+                      : 'rgba(196,128,58,0.3)'}`,
+                    borderRadius: 14, padding: '14px 16px',
+                    display: 'flex', alignItems: 'center',
+                    justifyContent: 'space-between', gap: 12,
                   }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                    <div style={{ flex: 1 }}>
+                      {/* Status + index row */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                         <span style={{
-                          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-                          background: loan.status === 'active' ? 'rgba(0,183,127,0.2)' : 'rgba(196,128,58,0.2)',
-                          color: loan.status === 'active' ? '#00b47e' : '#c4803a',
+                          fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
+                          background: loan.status === 'active'
+                            ? 'rgba(0,183,127,0.12)' : 'rgba(196,128,58,0.15)',
+                          color: loan.status === 'active' ? '#00873a' : '#c4803a',
+                          letterSpacing: 0.5,
                         }}>
                           {loan.status.toUpperCase()}
                         </span>
-                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Loan #{i + 1}</span>
+                        <span style={{ fontSize: 12, color: '#8a7e80', fontWeight: 600 }}>
+                          Loan #{i + 1}
+                        </span>
                       </div>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 2 }}>
+
+                      {/* Amount */}
+                      <p style={{ fontSize: 15, fontWeight: 800, color: '#342f30', marginBottom: 2 }}>
                         {loan.principal?.toFixed(6)} ETH
                       </p>
+
+                      {/* Due date */}
                       {loan.dueDate && (
-                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
-                          Due: {new Date(loan.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        <p style={{ fontSize: 11, color: '#8a7e80' }}>
+                          Due:{' '}
+                          {new Date(loan.dueDate).toLocaleDateString('en-IN', {
+                            day: 'numeric', month: 'short', year: 'numeric',
+                          })}
                         </p>
                       )}
                     </div>
+
+                    {/* Action button */}
                     {loan.status === 'active' && (
                       <button
                         className="btn"
-                        style={{ background: '#ba1a1a', color: '#fff', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}
+                        style={{
+                          background: '#ba1a1a', color: '#fff',
+                          fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0,
+                          padding: '8px 16px',
+                        }}
                         onClick={() => navigate(`/history?repay=${loan._id}`)}
                       >
                         Repay <ChevronRight size={13} />
+                      </button>
+                    )}
+                    {loan.status === 'pending' && (
+                      <button
+                        className="btn btn-secondary"
+                        style={{
+                          fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0,
+                          color: '#c4803a', borderColor: '#c4803a', padding: '8px 14px',
+                        }}
+                        onClick={() => navigate('/history')}
+                      >
+                        View <ChevronRight size={13} />
                       </button>
                     )}
                   </div>
