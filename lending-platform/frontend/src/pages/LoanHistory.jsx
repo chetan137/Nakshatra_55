@@ -6,11 +6,11 @@ import { getMyLoans, repayLoan as repayAPI, liquidateLoan as liquidateAPI, getLo
 import { useWallet } from '../hooks/useWallet';
 
 const STATUS_CONFIG = {
-  pending:   { icon: <Clock size={14} />,          color: '#d97706', bg: '#fef3c7', label: 'Pending',   glow: 'rgba(217,119,6,0.3)' },
-  active:    { icon: <CheckCircle size={14} />,     color: '#059669', bg: '#d1fae5', label: 'Active',    glow: 'rgba(5,150,105,0.3)' },
-  repaid:    { icon: <CheckCircle size={14} />,     color: '#4f46e5', bg: '#e0e7ff', label: 'Repaid',    glow: 'rgba(79,70,229,0.3)' },
-  defaulted: { icon: <AlertTriangle size={14} />,   color: '#dc2626', bg: '#fee2e2', label: 'Defaulted', glow: 'rgba(220,38,38,0.3)' },
-  cancelled: { icon: <XCircle size={14} />,         color: '#6b7280', bg: '#f3f4f6', label: 'Cancelled', glow: 'rgba(107,114,128,0.2)' },
+  pending:   { icon: <Clock size={14} />,          color: '#815249', bg: '#fef2f0', label: 'Pending' },
+  active:    { icon: <CheckCircle size={14} />,     color: '#00373f', bg: '#e6f0ef', label: 'Active' },
+  repaid:    { icon: <CheckCircle size={14} />,     color: '#60180b', bg: '#f5e8e5', label: 'Repaid' },
+  defaulted: { icon: <AlertTriangle size={14} />,   color: '#ba1a1a', bg: '#fde8e8', label: 'Defaulted' },
+  cancelled: { icon: <XCircle size={14} />,         color: '#8a7e80', bg: '#F3F4F6', label: 'Cancelled' },
 };
 
 // ── LoanRow ──────────────────────────────────────────────────
@@ -39,49 +39,75 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, onCounterRespond, curre
 
   const sepolia = 'https://sepolia.etherscan.io/tx/';
 
+  const fmtUsd = (eth) => ethPrice
+    ? (eth * ethPrice).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+    : null;
+
+  const principalUsd = fmtUsd(loan.principal);
+  const totalRepaymentEth = loan.principal * (1 + loan.interestRateBps / 10000);
+  const totalRepaymentUsd = fmtUsd(totalRepaymentEth);
+
   return (
-    <div className="card" style={{
-      marginBottom: 20,
-      borderLeft: `5px solid ${cfg.color}`,
-      borderRadius: '16px',
-      padding: '24px',
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
-      background: 'white'
-    }}
-      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 14px 28px ${cfg.glow}`; }}
-      onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.03)'; }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 20 }}>
+    <div className="card" style={{ marginBottom: 16, borderLeft: `4px solid ${cfg.color}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
 
         {/* ── Left: info ── */}
         <div style={{ flex: 1 }}>
           {/* Status row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
             <span style={{
               background: cfg.bg, color: cfg.color,
-              borderRadius: 50, padding: '6px 16px', fontSize: 16, fontWeight: 800,
-              display: 'inline-flex', alignItems: 'center', gap: 6,
+              borderRadius: 50, padding: '3px 10px', fontSize: 12, fontWeight: 700,
+              display: 'inline-flex', alignItems: 'center', gap: 4,
             }}>
               {cfg.icon} {cfg.label}
             </span>
-            <span style={{ fontSize: 16, color: '#8a7e80', fontWeight: 600 }}>
-              {isBorrower ? '📤 You borrowed' : '📥 You lent'}
-            </span>
+            {/* Transaction type based on role and status */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', fontSize: 12 }}>
+              {isBorrower ? (
+                <>
+                  <span style={{ color: '#00373f', fontWeight: 600 }}>
+                    📥 You received {principalUsd || `${loan.principal} ETH`}
+                  </span>
+                  {(loan.status === 'repaid' || loan.status === 'active') && (
+                    <>
+                      <span style={{ color: '#8a7e80' }}>•</span>
+                      <span style={{ color: '#815249', fontWeight: 600 }}>
+                        📤 You sent {totalRepaymentUsd || `${totalRepaymentEth.toFixed(6)} ETH`}
+                      </span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span style={{ color: '#815249', fontWeight: 600 }}>
+                    📤 You sent {principalUsd || `${loan.principal} ETH`}
+                  </span>
+                  {(loan.status === 'repaid') && (
+                    <>
+                      <span style={{ color: '#8a7e80' }}>•</span>
+                      <span style={{ color: '#00373f', fontWeight: 600 }}>
+                        📥 You received {totalRepaymentUsd || `${totalRepaymentEth.toFixed(6)} ETH`}
+                      </span>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
             {isOverdue && (
-              <span style={{ background: '#fde8e8', color: '#ba1a1a', borderRadius: 50, padding: '6px 16px', fontSize: 15, fontWeight: 800 }}>
+              <span style={{ background: '#fde8e8', color: '#ba1a1a', borderRadius: 50, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
                 ⚠️ Overdue
               </span>
             )}
             {isPriceLiquidatable && (
-              <span style={{ background: '#FFEBEE', color: '#C62828', borderRadius: 50, padding: '6px 16px', fontSize: 15, fontWeight: 800,
-                display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Zap size={14} /> Price Drop — Undercollateralised
+              <span style={{ background: '#FFEBEE', color: '#C62828', borderRadius: 50, padding: '3px 10px', fontSize: 12, fontWeight: 700,
+                display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Zap size={11} /> Price Drop — Undercollateralised
               </span>
             )}
             {/* Live collateral ratio badge for active loans */}
             {isActive && onChainRatio !== null && (
-              <span style={{ background: `${ratioColor}18`, color: ratioColor, borderRadius: 50, padding: '6px 16px', fontSize: 15, fontWeight: 800 }}>
+              <span style={{ background: `${ratioColor}18`, color: ratioColor, borderRadius: 50, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
                 Ratio: {onChainRatio}%
               </span>
             )}
@@ -147,9 +173,9 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, onCounterRespond, curre
           )}
 
           {/* Data grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '16px', fontSize: 14, marginTop: 12 }}>
-            <Info label="Principal"  value={ethPrice ? `${(parseFloat(loan.principal) * ethPrice).toLocaleString('en-US', { style: 'currency', currency: 'USD' })} (${loan.principal} ETH)` : `${loan.principal} ETH`} bold accent />
-            <Info label="Rate"       value={`${interestPct} %`} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '4px 24px', fontSize: 14 }}>
+            <Info label="Principal"  value={principalUsd || `${loan.principal} ETH`} sub={`${loan.principal} ETH`} bold accent />
+            <Info label="Rate"       value={`${interestPct}%`} />
             <Info label="Duration"   value={`${loan.durationDays} days`} />
             {daysLeft !== null && isActive && (
               <Info label="Days left" value={isOverdue ? '⚠️ OVERDUE' : `${daysLeft}d`}
@@ -193,30 +219,30 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, onCounterRespond, curre
         </div>
 
         {/* ── Right: actions ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 180 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 150 }}>
           {/* Repay — borrower on active loan */}
           {isBorrower && isActive && (
-            <button className="btn btn-accent" style={{ fontSize: 15, padding: '12px 20px', fontWeight: 700 }} onClick={() => onRepay(loan)}>
+            <button className="btn btn-accent" style={{ fontSize: 13, padding: '10px 16px' }} onClick={() => onRepay(loan)}>
               ↩️ Repay Loan
             </button>
           )}
 
           {/* Liquidate — lender (or anyone) when overdue OR price-triggered */}
           {isLiquidatable && !isBorrower && (
-            <button className="btn btn-danger" style={{ fontSize: 15, padding: '12px 20px', fontWeight: 700 }} onClick={() => onLiquidate(loan)}>
-              <Zap size={16} /> {isPriceLiquidatable ? 'Liquidate (Price)' : 'Liquidate (Overdue)'}
+            <button className="btn btn-danger" style={{ fontSize: 13, padding: '10px 16px' }} onClick={() => onLiquidate(loan)}>
+              <Zap size={14} /> {isPriceLiquidatable ? 'Liquidate (Price)' : 'Liquidate (Overdue)'}
             </button>
           )}
           {/* Borrower can also trigger liquidation on overdue/price-drop */}
           {isLiquidatable && isBorrower && (
-            <button className="btn btn-danger" style={{ fontSize: 15, padding: '12px 20px', opacity: 0.8, fontWeight: 700 }} onClick={() => onLiquidate(loan)}>
-              <Zap size={16} /> Trigger Liquidation
+            <button className="btn btn-danger" style={{ fontSize: 13, padding: '10px 16px', opacity: 0.8 }} onClick={() => onLiquidate(loan)}>
+              <Zap size={14} /> Trigger Liquidation
             </button>
           )}
 
           {/* Cancel — borrower on pending loan (not yet funded) */}
           {isPending && isBorrower && (
-            <button className="btn btn-secondary" style={{ fontSize: 15, padding: '12px 20px', borderColor: '#C62828', color: '#C62828', fontWeight: 700 }}
+            <button className="btn btn-secondary" style={{ fontSize: 13, padding: '10px 16px', borderColor: '#C62828', color: '#C62828' }}
               onClick={() => onCancel(loan)}>
               ✕ Cancel & Recover
             </button>
@@ -227,11 +253,12 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, onCounterRespond, curre
   );
 }
 
-function Info({ label, value, bold, accent, color }) {
+function Info({ label, value, sub, bold, accent, color }) {
   return (
-    <div style={{ background: '#f8fafc', padding: '16px 20px', borderRadius: '14px', border: '1px solid #f1f5f9' }}>
-      <span style={{ fontSize: 13, color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, fontWeight: 700 }}>{label}</span>
-      <span style={{ fontWeight: bold ? 800 : 700, color: color || (accent ? '#0f172a' : '#334155'), fontSize: 20 }}>{value}</span>
+    <div>
+      <span style={{ fontSize: 11, color: '#8a7e80', display: 'block' }}>{label}</span>
+      <span style={{ fontWeight: bold ? 700 : 500, color: color || (accent ? '#60180b' : '#342f30'), fontSize: 14 }}>{value}</span>
+      {sub && <span style={{ fontSize: 11, color: '#8a7e80', display: 'block' }}>{sub}</span>}
     </div>
   );
 }
@@ -244,14 +271,9 @@ export default function LoanHistory() {
   const [loading, setLoading] = useState(true);
   const [filter,  setFilter]  = useState('all');
   const [userId,  setUserId]  = useState(null);
-  const [ethPrice, setEthPrice] = useState(3000);
+  const [ethPrice, setEthPrice] = useState(null);
 
   useEffect(() => {
-    fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
-      .then(r => r.json())
-      .then(d => { if (d?.ethereum?.usd) setEthPrice(d.ethereum.usd); })
-      .catch(() => {});
-
     const token = localStorage.getItem('lendchain_token');
     if (token) {
       try {
@@ -260,6 +282,13 @@ export default function LoanHistory() {
       } catch { /* ignore */ }
     }
     fetchLoans();
+
+    // Fetch ETH price
+    const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
+    fetch(`${API_BASE}/api/eth-price`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setEthPrice(d.usd); })
+      .catch(() => {});
   }, []);
 
   async function fetchLoans() {
@@ -394,7 +423,7 @@ export default function LoanHistory() {
                 </div>
                 <div style="background:#fef2f0;border-radius:12px;padding:14px">
                   <div style="font-size:11px;color:#8a7e80;margin-bottom:4px">
-                    Interest (${(rateBps / 100).toFixed(1)}%  × ${loan.durationDays} days agreed term)
+                    Interest (${(rateBps / 100).toFixed(1)}%/yr × ${loan.durationDays} days agreed term)
                   </div>
                   <div style="font-weight:700;color:#815249;font-size:15px">${fmt(interest)}</div>
                   <div style="font-size:11px;color:#8a7e80">${usdFmt(interest)}</div>
@@ -579,37 +608,35 @@ export default function LoanHistory() {
   }
 
   return (
-    <div className="page-dashboard" style={{ background: '#f8fafc', minHeight: '100vh' }}>
+    <div className="page-dashboard" style={{ background: '#F5F3FF' }}>
       {/* Topbar */}
       <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, height: 72,
-        background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(0,0,0,0.05)',
+        position: 'fixed', top: 0, left: 0, right: 0, height: 64,
+        background: 'white', boxShadow: '0 2px 16px rgba(45,27,105,0.08)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 32px', zIndex: 100,
       }}>
-        <button onClick={() => navigate('/dashboard')} className="btn btn-ghost" style={{ padding: '12px 20px', fontSize: 16, background: '#f1f5f9', borderRadius: 50, fontWeight: 700 }}>
-          <ArrowLeft size={20} /> Dashboard
+        <button onClick={() => navigate('/dashboard')} className="btn btn-ghost" style={{ padding: '8px 12px', fontSize: 14 }}>
+          <ArrowLeft size={16} /> Dashboard
         </button>
-        <h1 style={{ fontWeight: 800, fontSize: 26, color: '#0f172a', letterSpacing: '-0.5px' }}>My Loan History</h1>
-        <button onClick={fetchLoans} className="btn btn-ghost" style={{ padding: '12px 16px', background: '#f1f5f9', borderRadius: 50 }}>
-          <RefreshCw size={22} color="#0f172a" />
+        <h1 style={{ fontWeight: 800, fontSize: 18, color: '#342f30' }}>My Loan History</h1>
+        <button onClick={fetchLoans} className="btn btn-ghost" style={{ padding: '8px 12px' }}>
+          <RefreshCw size={16} />
         </button>
       </div>
 
-      <div style={{ paddingTop: 80, padding: '120px 40px 64px', maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ paddingTop: 80, padding: '96px 32px 32px', maxWidth: 900, margin: '0 auto' }}>
         {/* Filter tabs */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 40, flexWrap: 'wrap', background: 'white', padding: '8px', borderRadius: '20px', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
           {filterBtns.map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               style={{
-                flex: 1, minWidth: '120px',
-                padding: '16px 20px', borderRadius: 14, fontSize: 16, fontWeight: 800,
-                background: filter === f ? '#0f172a' : 'transparent',
-                color: filter === f ? 'white' : '#64748b',
-                border: 'none',
+                padding: '8px 16px', borderRadius: 50, fontSize: 13, fontWeight: 600,
+                background: filter === f ? '#60180b' : 'white',
+                color: filter === f ? 'white' : '#8a7e80',
+                border: `1px solid ${filter === f ? '#60180b' : '#E5E7EB'}`,
                 cursor: 'pointer', transition: 'all 0.2s',
                 textTransform: 'capitalize',
               }}
