@@ -54,16 +54,16 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, onCounterRespond, curre
         {/* ── Left: info ── */}
         <div style={{ flex: 1 }}>
           {/* Status row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
             <span style={{
               background: cfg.bg, color: cfg.color,
-              borderRadius: 50, padding: '3px 10px', fontSize: 12, fontWeight: 700,
-              display: 'inline-flex', alignItems: 'center', gap: 4,
+              borderRadius: 50, padding: '6px 14px', fontSize: 14, fontWeight: 800,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
             }}>
               {cfg.icon} {cfg.label}
             </span>
             {/* Transaction type based on role and status */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', fontSize: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 15 }}>
               {isBorrower ? (
                 <>
                   <span style={{ color: '#00373f', fontWeight: 600 }}>
@@ -173,7 +173,7 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, onCounterRespond, curre
           )}
 
           {/* Data grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '4px 24px', fontSize: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '16px', fontSize: 16, marginTop: 16 }}>
             <Info label="Principal"  value={principalUsd || `${loan.principal} ETH`} sub={`${loan.principal} ETH`} bold accent />
             <Info label="Rate"       value={`${interestPct}%`} />
             <Info label="Duration"   value={`${loan.durationDays} days`} />
@@ -219,30 +219,30 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, onCounterRespond, curre
         </div>
 
         {/* ── Right: actions ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 150 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 180 }}>
           {/* Repay — borrower on active loan */}
           {isBorrower && isActive && (
-            <button className="btn btn-accent" style={{ fontSize: 13, padding: '10px 16px' }} onClick={() => onRepay(loan)}>
+            <button className="btn btn-accent" style={{ fontSize: 15, padding: '12px 20px', fontWeight: 700 }} onClick={() => onRepay(loan)}>
               ↩️ Repay Loan
             </button>
           )}
 
           {/* Liquidate — lender (or anyone) when overdue OR price-triggered */}
           {isLiquidatable && !isBorrower && (
-            <button className="btn btn-danger" style={{ fontSize: 13, padding: '10px 16px' }} onClick={() => onLiquidate(loan)}>
-              <Zap size={14} /> {isPriceLiquidatable ? 'Liquidate (Price)' : 'Liquidate (Overdue)'}
+            <button className="btn btn-danger" style={{ fontSize: 15, padding: '12px 20px', fontWeight: 700 }} onClick={() => onLiquidate(loan)}>
+              <Zap size={16} /> {isPriceLiquidatable ? 'Liquidate (Price)' : 'Liquidate (Overdue)'}
             </button>
           )}
           {/* Borrower can also trigger liquidation on overdue/price-drop */}
           {isLiquidatable && isBorrower && (
-            <button className="btn btn-danger" style={{ fontSize: 13, padding: '10px 16px', opacity: 0.8 }} onClick={() => onLiquidate(loan)}>
-              <Zap size={14} /> Trigger Liquidation
+            <button className="btn btn-danger" style={{ fontSize: 15, padding: '12px 20px', opacity: 0.8, fontWeight: 700 }} onClick={() => onLiquidate(loan)}>
+              <Zap size={16} /> Trigger Liquidation
             </button>
           )}
 
           {/* Cancel — borrower on pending loan (not yet funded) */}
           {isPending && isBorrower && (
-            <button className="btn btn-secondary" style={{ fontSize: 13, padding: '10px 16px', borderColor: '#C62828', color: '#C62828' }}
+            <button className="btn btn-secondary" style={{ fontSize: 15, padding: '12px 20px', borderColor: '#C62828', color: '#C62828', fontWeight: 700 }}
               onClick={() => onCancel(loan)}>
               ✕ Cancel & Recover
             </button>
@@ -255,10 +255,10 @@ function LoanRow({ loan, onRepay, onLiquidate, onCancel, onCounterRespond, curre
 
 function Info({ label, value, sub, bold, accent, color }) {
   return (
-    <div>
-      <span style={{ fontSize: 11, color: '#8a7e80', display: 'block' }}>{label}</span>
-      <span style={{ fontWeight: bold ? 700 : 500, color: color || (accent ? '#60180b' : '#342f30'), fontSize: 14 }}>{value}</span>
-      {sub && <span style={{ fontSize: 11, color: '#8a7e80', display: 'block' }}>{sub}</span>}
+    <div style={{ background: '#f8fafc', padding: '16px 20px', borderRadius: '14px', border: '1px solid #f1f5f9' }}>
+      <span style={{ fontSize: 13, color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, fontWeight: 700 }}>{label}</span>
+      <span style={{ fontWeight: bold ? 800 : 700, color: color || (accent ? '#60180b' : '#342f30'), fontSize: 20 }}>{value}</span>
+      {sub && <span style={{ fontSize: 14, color: '#8a7e80', display: 'block', marginTop: 4 }}>{sub}</span>}
     </div>
   );
 }
@@ -411,33 +411,42 @@ export default function LoanHistory() {
           const overlay = document.createElement('div');
           overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:9999;padding:24px';
           overlay.innerHTML = `
-            <div style="background:white;border-radius:20px;padding:28px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
-              <h2 style="margin:0 0 6px;font-size:20px;font-weight:800;color:#342f30">Confirm Repayment</h2>
-              <p style="margin:0 0 20px;font-size:13px;color:#8a7e80">Sending ETH directly to lender's wallet</p>
+            <div style="background:white;border-radius:24px;padding:32px;max-width:420px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.3)">
+              <h2 style="margin:0 0 4px;font-size:22px;font-weight:800;color:#342f30">Confirm Repayment</h2>
+              <p style="margin:0 0 24px;font-size:14px;color:#8a7e80">To: ${lenderAddr.slice(0,6)}…${lenderAddr.slice(-4)}</p>
 
-              <div style="display:grid;gap:10px;margin-bottom:20px">
-                <div style="background:#fef2f0;border-radius:12px;padding:14px">
-                  <div style="font-size:11px;color:#8a7e80;margin-bottom:4px">Principal</div>
-                  <div style="font-weight:700;color:#60180b;font-size:16px">${fmt(principal)}</div>
-                  <div style="font-size:11px;color:#8a7e80">${usdFmt(principal)}</div>
-                </div>
-                <div style="background:#fef2f0;border-radius:12px;padding:14px">
-                  <div style="font-size:11px;color:#8a7e80;margin-bottom:4px">
-                    Interest (${(rateBps / 100).toFixed(1)}%/yr × ${loan.durationDays} days agreed term)
+              <div style="background:#f8fafc;border-radius:16px;padding:20px;margin-bottom:20px">
+
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+                  <div>
+                    <div style="font-size:14px;color:#8a7e80;font-weight:600">Principal</div>
+                    <div style="font-size:12px;color:#c4b0b0;margin-top:2px">${fmt(principal)}</div>
                   </div>
-                  <div style="font-weight:700;color:#815249;font-size:15px">${fmt(interest)}</div>
-                  <div style="font-size:11px;color:#8a7e80">${usdFmt(interest)}</div>
+                  <div style="font-size:22px;font-weight:800;color:#60180b">${ethPrice ? `$${(principal * ethPrice).toFixed(4)}` : fmt(principal)}</div>
                 </div>
-                <div style="background:#e6f0ef;border-radius:12px;padding:14px;border:2px solid #00373f">
-                  <div style="font-size:11px;color:#00373f;margin-bottom:4px;font-weight:600">TOTAL YOU SEND</div>
-                  <div style="font-weight:800;color:#00373f;font-size:18px">${fmt(totalOwed)}</div>
-                  <div style="font-size:11px;color:#8a7e80">${usdFmt(totalOwed)} → ${lenderAddr.slice(0,6)}…${lenderAddr.slice(-4)}</div>
+
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+                  <div>
+                    <div style="font-size:14px;color:#8a7e80;font-weight:600">+ Interest <span style="font-weight:400;font-size:12px">(${(rateBps / 100).toFixed(1)}%/yr × ${loan.durationDays}d)</span></div>
+                    <div style="font-size:12px;color:#c4b0b0;margin-top:2px">${fmt(interest)}</div>
+                  </div>
+                  <div style="font-size:22px;font-weight:800;color:#815249">${ethPrice ? `$${(interest * ethPrice).toFixed(4)}` : fmt(interest)}</div>
+                </div>
+
+                <div style="border-top:2px dashed #e2e8f0;margin-bottom:18px"></div>
+
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div>
+                    <div style="font-size:15px;color:#00373f;font-weight:800">= Total</div>
+                    <div style="font-size:12px;color:#8a7e80;margin-top:2px">${fmt(totalOwed)}</div>
+                  </div>
+                  <div style="font-size:32px;font-weight:900;color:#00373f">${ethPrice ? `$${(totalOwed * ethPrice).toFixed(4)}` : fmt(totalOwed)}</div>
                 </div>
               </div>
 
               <div style="display:flex;gap:10px">
-                <button id="lc-cancel-repay" style="flex:1;padding:12px;border-radius:50px;border:1px solid #E5E7EB;background:white;color:#342f30;font-weight:600;cursor:pointer;font-size:14px">Cancel</button>
-                <button id="lc-confirm-repay" style="flex:1;padding:12px;border-radius:50px;border:none;background:#60180b;color:white;font-weight:700;cursor:pointer;font-size:14px">Confirm & Send</button>
+                <button id="lc-cancel-repay" style="flex:1;padding:14px;border-radius:50px;border:1px solid #E5E7EB;background:white;color:#342f30;font-weight:600;cursor:pointer;font-size:14px">Cancel</button>
+                <button id="lc-confirm-repay" style="flex:2;padding:14px;border-radius:50px;border:none;background:linear-gradient(135deg,#60180b,#815249);color:white;font-weight:800;cursor:pointer;font-size:15px">↩️ Repay Loan ${ethPrice ? `· $${(totalOwed * ethPrice).toFixed(4)}` : ''}</button>
               </div>
             </div>`;
           document.body.appendChild(overlay);
@@ -611,29 +620,30 @@ export default function LoanHistory() {
     <div className="page-dashboard" style={{ background: '#F5F3FF' }}>
       {/* Topbar */}
       <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, height: 64,
+        position: 'fixed', top: 0, left: 0, right: 0, height: 74,
         background: 'white', boxShadow: '0 2px 16px rgba(45,27,105,0.08)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 32px', zIndex: 100,
       }}>
-        <button onClick={() => navigate('/dashboard')} className="btn btn-ghost" style={{ padding: '8px 12px', fontSize: 14 }}>
-          <ArrowLeft size={16} /> Dashboard
+        <button onClick={() => navigate('/dashboard')} className="btn btn-ghost" style={{ padding: '10px 16px', fontSize: 15, fontWeight: 600 }}>
+          <ArrowLeft size={18} /> Dashboard
         </button>
-        <h1 style={{ fontWeight: 800, fontSize: 18, color: '#342f30' }}>My Loan History</h1>
-        <button onClick={fetchLoans} className="btn btn-ghost" style={{ padding: '8px 12px' }}>
-          <RefreshCw size={16} />
+        <h1 style={{ fontWeight: 800, fontSize: 26, color: '#342f30' }}>My Loan History</h1>
+        <button onClick={fetchLoans} className="btn btn-ghost" style={{ padding: '10px 16px' }}>
+          <RefreshCw size={20} />
         </button>
       </div>
 
-      <div style={{ paddingTop: 80, padding: '96px 32px 32px', maxWidth: 900, margin: '0 auto' }}>
+      <div style={{ paddingTop: 80, padding: '120px 40px 64px', maxWidth: 1100, margin: '0 auto' }}>
         {/* Filter tabs */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 32, flexWrap: 'wrap' }}>
           {filterBtns.map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               style={{
-                padding: '8px 16px', borderRadius: 50, fontSize: 13, fontWeight: 600,
+                flex: 1, minWidth: '120px',
+                padding: '14px 20px', borderRadius: 50, fontSize: 16, fontWeight: 700,
                 background: filter === f ? '#60180b' : 'white',
                 color: filter === f ? 'white' : '#8a7e80',
                 border: `1px solid ${filter === f ? '#60180b' : '#E5E7EB'}`,

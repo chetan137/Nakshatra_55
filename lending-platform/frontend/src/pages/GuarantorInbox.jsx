@@ -19,13 +19,14 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, UserCheck, UserX, FileText, Upload, CheckCircle,
   AlertTriangle, Clock, XCircle, ChevronRight, Shield, ShieldCheck,
-  Inbox, Send as SendIcon,
+  Inbox, Send as SendIcon, Bell, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useGuarantor } from '../hooks/useGuarantor';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import { useNotifications } from '../hooks/useNotifications';
 
 const STATUS_CONFIG = {
   pending:   { color: '#c4803a', bg: '#fef2f0', label: 'Pending', icon: <Clock size={13} /> },
@@ -176,19 +177,7 @@ function ApproveModal({ request, onConfirm, onClose, loading }) {
           </button>
         </div>
 
-        {/* Liability warning */}
-        <div style={{
-          background: 'rgba(186,26,26,0.06)', border: '1px solid rgba(186,26,26,0.25)',
-          borderRadius: 12, padding: '14px 16px', marginBottom: 20,
-        }}>
-          <p style={{ fontSize: 14, color: '#ba1a1a', fontWeight: 700, marginBottom: 4 }}>
-            ⚠️ You are guaranteeing {fmtUsd(request.guaranteeAmountEth) || `${request.guaranteeAmountEth} ETH`}
-          </p>
-          <p style={{ fontSize: 13, color: '#815249', lineHeight: 1.6 }}>
-            If <strong>{request.borrower?.walletAddress?.slice(0,6)}…</strong> defaults on this loan, you will be responsible
-          for repaying <strong>{fmtUsd(request.guaranteeAmountEth) || `${request.guaranteeAmountEth} ETH`}</strong>.
-          </p>
-        </div>
+        {/* Liability warning removed */}
 
         {/* Document type */}
         <div style={{ marginBottom: 16 }}>
@@ -408,6 +397,20 @@ export default function GuarantorInbox() {
   const [rejectModal,  setRejectModal]  = useState(null); // request obj
   const [actionLoading, setActionLoading] = useState(false);
   const [ethPrice,     setEthPrice]     = useState(null);
+  const [notifOpen,    setNotifOpen]    = useState(false);
+
+  const { notifications, unreadCount, markAllRead, dismiss } = useNotifications();
+  const prevNotifLen = useRef(0);
+
+  useEffect(() => {
+    if (notifications.length > prevNotifLen.current) {
+      const latest = notifications[0];
+      if (latest) {
+        toast(latest.title, { icon: '🔔', duration: 4000, style: { fontWeight: 600, fontSize: 14 } });
+      }
+    }
+    prevNotifLen.current = notifications.length;
+  }, [notifications]);
 
   const reload = useCallback(() => setRefreshKey(k => k + 1), []);
 
@@ -471,6 +474,111 @@ export default function GuarantorInbox() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg, #fff8f7 0%, #f5e8e5 100%)' }}>
+
+      {/* ── Fixed Top Navbar with Back Button ── */}
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, height: 80,
+        background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)', boxShadow: '0 2px 20px rgba(96,24,11,0.10)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 36px', zIndex: 200,
+      }}>
+        <button onClick={() => navigate('/dashboard')} className="btn btn-ghost"
+          style={{
+            padding: '12px 22px', fontSize: 18, fontWeight: 800,
+            background: 'linear-gradient(135deg, #f5e8e5, #fdddd7)',
+            borderRadius: 50, display: 'flex', alignItems: 'center', gap: 10,
+            color: '#60180b', border: '1.5px solid rgba(96,24,11,0.18)',
+            boxShadow: '0 2px 10px rgba(96,24,11,0.10)', transition: 'all 0.2s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #fdddd7, #f5c8c0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(96,24,11,0.18)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #f5e8e5, #fdddd7)'; e.currentTarget.style.boxShadow = '0 2px 10px rgba(96,24,11,0.10)'; }}
+        >
+          <ArrowLeft size={22} /> Back
+        </button>
+        <h2 style={{ fontWeight: 900, fontSize: 26, color: '#342f30', letterSpacing: '-0.5px' }}>Guarantor Center</h2>
+        <div style={{ width: 140, display: 'flex', justifyContent: 'flex-end', position: 'relative' }}>
+          {/* ── Bell ── */}
+          <button
+            onClick={() => { setNotifOpen(o => !o); if (!notifOpen) markAllRead(); }}
+            style={{
+              background: unreadCount > 0 ? 'linear-gradient(135deg,#60180b,#815249)' : '#f5e8e5',
+              border: unreadCount > 0 ? 'none' : '1.5px solid rgba(96,24,11,0.18)',
+              borderRadius: '50%', width: 46, height: 46,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', transition: 'all 0.2s', position: 'relative',
+            }}
+            title="Notifications"
+          >
+            <Bell size={20} color={unreadCount > 0 ? 'white' : '#60180b'} />
+            {unreadCount > 0 && (
+              <span style={{
+                position: 'absolute', top: -4, right: -4,
+                background: '#ba1a1a', color: 'white',
+                borderRadius: '50%', width: 18, height: 18,
+                fontSize: 11, fontWeight: 800,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '2px solid white',
+              }}>{unreadCount > 9 ? '9+' : unreadCount}</span>
+            )}
+          </button>
+
+          {/* Dropdown */}
+          {notifOpen && (
+            <div style={{
+              position: 'absolute', top: 56, right: 0, width: 360,
+              background: 'white', borderRadius: 18,
+              boxShadow: '0 16px 48px rgba(0,0,0,0.18)',
+              border: '1px solid rgba(0,0,0,0.06)', zIndex: 500,
+              maxHeight: 480, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+              textAlign: 'left',
+            }}>
+              <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 800, fontSize: 16, color: '#342f30' }}>🔔 Notifications</span>
+                <button onClick={() => setNotifOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8a7e80', padding: 4 }}>
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: '36px 20px', textAlign: 'center', color: '#8a7e80' }}>
+                    <Bell size={32} style={{ margin: '0 auto 10px', opacity: 0.3 }} />
+                    <p style={{ fontSize: 14, fontWeight: 600 }}>All caught up!</p>
+                    <p style={{ fontSize: 13 }}>No new notifications yet.</p>
+                  </div>
+                ) : (
+                  notifications.map(n => (
+                    <div key={n.id} style={{
+                      padding: '14px 20px',
+                      borderBottom: '1px solid #f8fafc',
+                      background: n.read ? 'white' : 'rgba(96,24,11,0.03)',
+                      display: 'flex', gap: 12, alignItems: 'flex-start',
+                      transition: 'background 0.15s',
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#fef8f7'}
+                      onMouseLeave={e => e.currentTarget.style.background = n.read ? 'white' : 'rgba(96,24,11,0.03)'}
+                    >
+                      <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => { setNotifOpen(false); navigate(n.link); }}>
+                        <p style={{ fontWeight: 700, fontSize: 14, color: '#342f30', margin: '0 0 2px' }}>{n.title}</p>
+                        <p style={{ fontSize: 13, color: '#8a7e80', margin: '0 0 4px', lineHeight: 1.4 }}>{n.body}</p>
+                        <p style={{ fontSize: 11, color: '#c4b0b0', margin: 0 }}>
+                          {n.time.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <button onClick={() => dismiss(n.id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c4b0b0', padding: '2px 4px', flexShrink: 0 }}>
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       <Navbar />
 
       {approveModal && (
@@ -482,38 +590,35 @@ export default function GuarantorInbox() {
           onClose={() => setRejectModal(null)} loading={actionLoading} />
       )}
 
-      <main style={{ maxWidth: 760, margin: '0 auto', padding: '40px 20px 80px' }}>
+      <main style={{ maxWidth: 900, margin: '0 auto', padding: '118px 28px 88px' }}>
 
-        <button onClick={() => navigate('/dashboard')} className="btn btn-ghost"
-          style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
-          <ArrowLeft size={16} /> Dashboard
-        </button>
+        {/* (Back button removed from here — now in top navbar) */}
 
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: '#342f30', marginBottom: 6 }}>Guarantor Center</h1>
-        <p style={{ color: '#8a7e80', fontSize: 14, marginBottom: 28 }}>
+        <h1 style={{ fontSize: 40, fontWeight: 900, color: '#342f30', marginBottom: 10, letterSpacing: '-0.5px' }}>Guarantor Center</h1>
+        <p style={{ color: '#8a7e80', fontSize: 20, marginBottom: 36 }}>
           Review incoming guarantee requests or track your sent requests.
         </p>
 
         {/* Tab switcher */}
-        <div style={{ display: 'flex', gap: 4, background: 'rgba(96,24,11,0.06)', borderRadius: 12, padding: 4, marginBottom: 28, width: 'fit-content' }}>
+        <div style={{ display: 'flex', gap: 8, background: 'rgba(96,24,11,0.07)', borderRadius: 16, padding: 6, marginBottom: 36, width: 'fit-content' }}>
           {[
-            { id: 'inbox',    label: 'My Inbox',       icon: <Inbox size={15} />,    count: pendingInboxCount },
-            { id: 'sent',     label: 'My Requests',    icon: <SendIcon size={15} />, count: 0 },
+            { id: 'inbox',    label: 'My Inbox',       icon: <Inbox size={20} />,    count: pendingInboxCount },
+            { id: 'sent',     label: 'My Requests',    icon: <SendIcon size={20} />, count: 0 },
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
               background: activeTab === tab.id ? 'white' : 'transparent',
-              border: 'none', borderRadius: 10, padding: '8px 18px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: 14, fontWeight: activeTab === tab.id ? 700 : 500,
+              border: 'none', borderRadius: 12, padding: '13px 28px',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9,
+              fontSize: 18, fontWeight: activeTab === tab.id ? 800 : 500,
               color: activeTab === tab.id ? '#342f30' : '#8a7e80',
-              boxShadow: activeTab === tab.id ? '0 2px 8px rgba(96,24,11,0.1)' : 'none',
+              boxShadow: activeTab === tab.id ? '0 2px 10px rgba(96,24,11,0.12)' : 'none',
               transition: 'all 0.2s', position: 'relative',
             }}>
               {tab.icon} {tab.label}
               {tab.count > 0 && (
                 <span style={{
                   background: '#60180b', color: 'white', borderRadius: '50%',
-                  width: 18, height: 18, fontSize: 11, fontWeight: 700,
+                  width: 24, height: 24, fontSize: 13, fontWeight: 800,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {tab.count}
@@ -555,29 +660,29 @@ export default function GuarantorInbox() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{
-                        width: 40, height: 40, borderRadius: '50%',
+                        width: 48, height: 48, borderRadius: '50%',
                         background: 'linear-gradient(135deg, #60180b, #815249)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: 'white', fontWeight: 700,
+                        color: 'white', fontWeight: 700, fontSize: 18,
                       }}>
                         {borrow?.walletAddress ? '0x' : 'B'}
                       </div>
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontWeight: 700, fontSize: 15 }} title={borrow?.walletAddress}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontWeight: 800, fontSize: 21 }} title={borrow?.walletAddress}>
                             {borrow?.walletAddress?.slice(0, 6)}…{borrow?.walletAddress?.slice(-4)}
                           </span>
-                          {borrow?.zkVerified && <ShieldCheck size={14} color="#00373f" title="ZK Verified" />}
+                          {borrow?.zkVerified && <ShieldCheck size={18} color="#00373f" title="ZK Verified" />}
                         </div>
-                        <p style={{ fontSize: 12, color: '#8a7e80', fontFamily: 'monospace' }}>
+                        <p style={{ fontSize: 15, color: '#8a7e80', fontFamily: 'monospace' }}>
                           {borrow?.walletAddress?.slice(0, 8)}…{borrow?.walletAddress?.slice(-6)}
                         </p>
                       </div>
                     </div>
                     <span style={{
                       background: cfg.bg, color: cfg.color, borderRadius: 50,
-                      padding: '4px 12px', fontSize: 12, fontWeight: 700,
-                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '8px 20px', fontSize: 16, fontWeight: 800,
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
                     }}>
                       {cfg.icon} {cfg.label}
                     </span>
@@ -585,22 +690,21 @@ export default function GuarantorInbox() {
 
                   {/* Loan details */}
                   <div style={{
-                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                    gap: 12, marginBottom: 16,
-                    background: 'rgba(96,24,11,0.03)', borderRadius: 10, padding: '12px 14px',
+                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: 18, marginBottom: 18,
+                    background: 'rgba(96,24,11,0.03)', borderRadius: 14, padding: '20px 22px',
                   }}>
                     {[
-                      { label: 'Loan Amount',    value: fmtUsd(loan?.principal) || `${loan?.principal} ETH`, sub: `${loan?.principal} ETH` },
-                      { label: 'Your Liability', value: fmtUsd(req.guaranteeAmountEth) || `${req.guaranteeAmountEth} ETH`, sub: `${req.guaranteeAmountEth} ETH`, accent: true },
-                      { label: 'Duration',       value: `${loan?.durationDays} days` },
-                      { label: 'Interest Rate',  value: `${((loan?.interestRateBps || 0) / 100).toFixed(1)}% ` },
+                      { label: 'Loan Amount',   value: fmtUsd(loan?.principal) || `${loan?.principal} ETH`, sub: `${loan?.principal} ETH` },
+                      { label: 'Duration',      value: `${loan?.durationDays} days` },
+                      { label: 'Interest Rate', value: `${((loan?.interestRateBps || 0) / 100).toFixed(1)}% ` },
                     ].map((item, i) => (
                       <div key={i}>
-                        <p style={{ fontSize: 11, color: '#8a7e80', marginBottom: 2 }}>{item.label}</p>
-                        <p style={{ fontSize: 15, fontWeight: 700, color: item.accent ? '#ba1a1a' : '#342f30' }}>
+                        <p style={{ fontSize: 15, color: '#8a7e80', marginBottom: 5, fontWeight: 600 }}>{item.label}</p>
+                        <p style={{ fontSize: 24, fontWeight: 800, color: item.accent ? '#ba1a1a' : '#342f30' }}>
                           {item.value}
                         </p>
-                        {item.sub && <p style={{ fontSize: 11, color: '#8a7e80' }}>{item.sub}</p>}
+                        {item.sub && <p style={{ fontSize: 14, color: '#8a7e80', marginTop: 3 }}>{item.sub}</p>}
                       </div>
                     ))}
                   </div>
@@ -647,26 +751,26 @@ export default function GuarantorInbox() {
                   )}
 
                   {/* Requested date */}
-                  <p style={{ fontSize: 11, color: '#8a7e80', marginBottom: req.status === 'pending' ? 14 : 0 }}>
+                  <p style={{ fontSize: 14, color: '#8a7e80', marginBottom: req.status === 'pending' ? 16 : 0 }}>
                     Requested {new Date(req.requestedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
 
                   {/* Actions — only for pending */}
                   {req.status === 'pending' && (
-                    <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: 14 }}>
                       <button
                         className="btn"
-                        style={{ flex: 1, background: '#00373f', color: 'white', fontSize: 13 }}
+                        style={{ flex: 1, background: '#00373f', color: 'white', fontSize: 18, padding: '14px 22px', fontWeight: 800 }}
                         onClick={() => setApproveModal(req)}
                       >
-                        <UserCheck size={15} /> Approve
+                        <UserCheck size={20} /> Approve
                       </button>
                       <button
                         className="btn btn-secondary"
-                        style={{ flex: 1, fontSize: 13, color: '#ba1a1a', borderColor: 'rgba(186,26,26,0.3)' }}
+                        style={{ flex: 1, fontSize: 18, padding: '14px 22px', color: '#ba1a1a', borderColor: 'rgba(186,26,26,0.3)', fontWeight: 800 }}
                         onClick={() => setRejectModal(req)}
                       >
-                        <UserX size={15} /> Decline
+                        <UserX size={20} /> Decline
                       </button>
                     </div>
                   )}
@@ -723,10 +827,9 @@ export default function GuarantorInbox() {
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 20, fontSize: 13, color: '#8a7e80', marginBottom: 10, flexWrap: 'wrap' }}>
-                    <span>Loan: <strong style={{ color: '#342f30' }}>{fmtUsd(loan?.principal) || `${loan?.principal} ETH`}</strong></span>
-                    <span>Liability: <strong style={{ color: '#ba1a1a' }}>{fmtUsd(req.guaranteeAmountEth) || `${req.guaranteeAmountEth} ETH`}</strong></span>
-                    <span>Sent: <strong style={{ color: '#342f30' }}>{new Date(req.requestedAt).toLocaleDateString('en-IN')}</strong></span>
+                  <div style={{ display: 'flex', gap: 22, fontSize: 18, color: '#8a7e80', marginBottom: 14, flexWrap: 'wrap' }}>
+                    <span>Loan: <strong style={{ color: '#342f30', fontSize: 22 }}>{fmtUsd(loan?.principal) || `${loan?.principal} ETH`}</strong></span>
+                    <span>Sent: <strong style={{ color: '#342f30', fontSize: 18 }}>{new Date(req.requestedAt).toLocaleDateString('en-IN')}</strong></span>
                   </div>
 
                   {req.guarantorNote && (
@@ -741,10 +844,10 @@ export default function GuarantorInbox() {
                   {req.status === 'pending' && (
                     <button
                       className="btn btn-secondary"
-                      style={{ fontSize: 13, color: '#ba1a1a' }}
+                      style={{ fontSize: 15, padding: '10px 18px', color: '#ba1a1a', fontWeight: 700 }}
                       onClick={() => handleCancel(req._id)}
                     >
-                      <XCircle size={14} /> Cancel Request
+                      <XCircle size={16} /> Cancel Request
                     </button>
                   )}
                 </div>

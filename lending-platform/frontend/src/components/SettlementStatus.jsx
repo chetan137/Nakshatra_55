@@ -240,7 +240,6 @@ export default function SettlementStatus({ userRole }) {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '6px 18px' }}>
                       <span style={infoItem}><b>Amount</b>{fmt(loan.principal)}</span>
-                      <span style={infoItem}><b>Collateral</b>{fmt(loan.collateral)}</span>
                       <span style={infoItem}><b>Rate</b>{loan.interestRateBps != null ? `${(loan.interestRateBps / 100).toFixed(1)}%` : '—'}</span>
                       <span style={infoItem}><b>Duration</b>{loan.durationDays ? `${loan.durationDays}d` : '—'}</span>
                       {loan.dueDate && (
@@ -292,7 +291,7 @@ export default function SettlementStatus({ userRole }) {
           <li>Maximum <strong style={{ color: '#342f30' }}>2 concurrent</strong> active or pending loans per borrower</li>
           <li>Repay any active loan to free up a slot</li>
           <li>Defaulted loans <strong style={{ color: '#ba1a1a' }}>reduce your credit score</strong> and affect future eligibility</li>
-          <li>Collateral is released on-chain upon full repayment</li>
+           
           <li>Status auto-updates after on-chain transaction confirmation</li>
         </ul>
       </div>
