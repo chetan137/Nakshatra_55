@@ -43,12 +43,15 @@ const authLimiter = rateLimit({
 });
 
 // ── Middleware ─────────────────────────────────────────────
-const ALLOWED_ORIGIN = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+const ALLOWED_ORIGINS = [
+  'https://nakshatra-55.vercel.app',
+  'http://localhost:5173',
+];
 const corsOptions = {
   origin: (origin, callback) => {
     if (!origin) return callback(null, true); // allow server-to-server
-    if (origin.replace(/\/$/, '') === ALLOWED_ORIGIN) return callback(null, ALLOWED_ORIGIN);
-    return callback(null, false); // silent reject, not error — avoids 500
+    if (ALLOWED_ORIGINS.includes(origin.replace(/\/$/, ''))) return callback(null, origin.replace(/\/$/, ''));
+    return callback(null, false);
   },
   credentials: true,
   optionsSuccessStatus: 200,
