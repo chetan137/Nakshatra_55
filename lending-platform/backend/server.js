@@ -43,12 +43,11 @@ const authLimiter = rateLimit({
 });
 
 // ── Middleware ─────────────────────────────────────────────
+const ALLOWED_ORIGIN = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
 const corsOptions = {
   origin: (origin, callback) => {
     if (!origin) return callback(null, true); // allow server-to-server
-    const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
-    const incoming = origin.replace(/\/$/, '');
-    if (incoming === allowed) return callback(null, true);
+    if (origin.replace(/\/$/, '') === ALLOWED_ORIGIN) return callback(null, ALLOWED_ORIGIN);
     return callback(null, false); // silent reject, not error — avoids 500
   },
   credentials: true,
