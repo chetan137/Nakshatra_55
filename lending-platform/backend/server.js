@@ -43,7 +43,7 @@ const authLimiter = rateLimit({
 });
 
 // ── Middleware ─────────────────────────────────────────────
-app.use(cors({
+const corsOptions = {
   origin: (origin, callback) => {
     if (!origin) return callback(null, true); // allow server-to-server
     const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
@@ -53,8 +53,9 @@ app.use(cors({
   },
   credentials: true,
   optionsSuccessStatus: 200,
-}));
-app.options('*', cors()); // handle preflight for all routes
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // handle preflight with same origin rules
 app.use(express.json());
 app.use('/api', apiLimiter);
 app.use('/api/auth', authLimiter);
